@@ -8,8 +8,12 @@ HANDLE hInput, hOutput;
 static int iTermWidth, iTermHeight;
 
 static int iMsgQueueSz = 8;
-static message_t **msg_vector;
+static message_t **msg_vector;  // I thought about switching to linked lists so that the message history would be possible
 
+/* Forward declaration for static functions */
+static void mm_msgformat(message_t *msg);
+
+/* Normal functions */
 void mm_scrint(void) {
     hInput = GetStdHandle(STD_INPUT_HANDLE);
     hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -29,6 +33,7 @@ void mm_scrint(void) {
     iTermWidth = csbi.dwSize.X;
     iTermHeight = csbi.dwSize.Y;
 
+    /* Determining how many chat lines are going to fit */
     iMsgQueueSz = (iTermHeight - 3) / ceil((MAX_BODY + MAX_USERNAME + 2) / iTermWidth);
     msg_vector = calloc(iMsgQueueSz, sizeof(message_t*));
     /*
@@ -42,14 +47,6 @@ void mm_scrint(void) {
         21 / 2
         10.5 => int(10)
     */
-}
-
-static void mm_msgformat(message_t *msg) {
-    if (msg == NULL)
-        return;
-
-    printf("%ls> %ls", msg->wcs_username, msg->wcs_body);
-    return;
 }
 
 void mm_scroll(message_t *new) {
@@ -78,4 +75,12 @@ int mm_kbdin(void) {
         return (IR.EventType == KEY_EVENT && IR.Event.KeyEvent.bKeyDown) ? IR.Event.KeyEvent.uChar.UnicodeChar : -1;
     }
     return -1;
+}
+
+static void mm_msgformat(message_t *msg) {
+    if (msg == NULL)
+        return;
+
+    printf("%ls> %ls", msg->wcs_username, msg->wcs_body);   // For now
+    return;
 }

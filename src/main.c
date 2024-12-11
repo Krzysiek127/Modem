@@ -11,11 +11,11 @@ void TIRCriticalError(wchar_t *text) {
     WSACleanup();
     exit(1);
 }
-SOCKET skMain, skBroad;     // TCP(2005) and UDP(2007)
+SOCKET skMain, skBroad;     // TCP(2005) and UDP(2005)
 
 
 char ADDR[] = "127.0.0.1";
-USHORT TPORT = 2005, UPORT = 2007;
+USHORT TPORT = 2005, UPORT = 2005;
 
 int main(int argc, char **argv) {
     WSADATA wsa;
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
         L"Failed to set broadcast option on UDP socket"
     );
 
-    //TIRCAssert( connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) != SOCKET_ERROR, L"Failed to establish a connection to host over TCP" );
+    TIRCAssert( connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) != SOCKET_ERROR, L"Failed to establish a connection to host over TCP" );
     //TIRCAssert( bind(skBroad, (struct sockaddr*)&udp, sizeof(udp)) != SOCKET_ERROR, L"Failed to bind UDP port" );
 
     /* Set non-blocking mode on TCP socket */
