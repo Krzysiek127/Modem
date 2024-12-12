@@ -1,7 +1,7 @@
 #ifndef H_SCREEN
 #define H_SCREEN
 
-#include "types.h"
+#include "message.h"
 
 void mm_scrint(void);
 void mm_scroll(message_t *new);

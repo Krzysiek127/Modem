@@ -51,7 +51,7 @@ void mm_scrint(void) {
 }
 
 void mm_scroll(message_t *new) {
-    free(msg_vector[0]);
+    msg_free(msg_vector[0]);
     for (size_t i = 0; i < iMsgQueueSz; i++) {
         msg_vector[i] = msg_vector[i + 1];
     }

@@ -19,9 +19,12 @@
 #include <winsock2.h>
 #include <windows.h>
 
-// stdlib already defines __min()
-//#define MIN(a,b) (((a)<(b))?(a):(b))
 
+#define MMVER   0x10
+#define MAX_USERNAME    24
+#define MAX_BODY        80
+#define MAX_MOTD        160
+#define FOREGROUND_DEFAULT  (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
 #define PRG_NAME    (L"Modem")
 #define PRG_VER     (L"0.1")
 
@@ -45,5 +48,6 @@
 
 void TIRCAssert(bool condition, const wchar_t *text);
 void TIRCriticalError(const wchar_t *text);
+void TIRCFormatError(int lasterror);
 
 #endif
