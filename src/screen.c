@@ -18,8 +18,8 @@ void mm_scrint(void) {
     hInput = GetStdHandle(STD_INPUT_HANDLE);
     hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
-    TIRCAssert(hInput != NULL, L"Failed to initialize STDIN handle!");
-    TIRCAssert(hOutput != NULL, L"Failed to initialize STDOUT handle!");
+    TIRCAssert(hInput == NULL, L"Failed to initialize STDIN handle!");
+    TIRCAssert(hOutput == NULL, L"Failed to initialize STDOUT handle!");
 
     //SetConsoleOutputCP(CP_UTF8);
     setlocale(LC_ALL, ".UTF8");
@@ -67,7 +67,7 @@ void mm_scrflush(void) {
 
 
 int mm_kbdin(void) {
-    TIRCAssert(hInput != NULL, L"Uninitialized STDIN handle!");
+    TIRCAssert(hInput == NULL, L"Uninitialized STDIN handle!");
     INPUT_RECORD IR;
     DWORD EVENTSREAD;
 

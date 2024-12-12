@@ -10,9 +10,9 @@ USHORT UPORT = 2005;
 void sck_init(void) {
     WSADATA wsa;
 
-    TIRCAssert(WSAStartup( MAKEWORD(2, 2), &wsa ) == 0, L"Failed to initialize Winsock 2.2");
-    TIRCAssert((skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != INVALID_SOCKET, L"Failed to initialize TCP socket");
-    TIRCAssert((skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) != INVALID_SOCKET, L"Failed to initialize UDP socket");
+    TIRCAssert(WSAStartup( MAKEWORD(2, 2), &wsa ) != 0, L"Failed to initialize Winsock 2.2");
+    TIRCAssert((skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET, L"Failed to initialize TCP socket");
+    TIRCAssert((skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET, L"Failed to initialize UDP socket");
     
     struct sockaddr_in tcp, udp;
     tcp.sin_family = AF_INET;
@@ -26,11 +26,11 @@ void sck_init(void) {
     // not sure if this can be changed to normal bool
     BOOL broadcast = TRUE;
     TIRCAssert(
-        setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) != SOCKET_ERROR,
+        setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) == SOCKET_ERROR,
         L"Failed to set broadcast option on UDP socket"
     );
 
-    TIRCAssert( connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) != SOCKET_ERROR, L"Failed to establish a connection to host over TCP" );
+    TIRCAssert( connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) == SOCKET_ERROR, L"Failed to establish a connection to host over TCP" );
     //TIRCAssert( bind(skBroad, (struct sockaddr*)&udp, sizeof(udp)) != SOCKET_ERROR, L"Failed to bind UDP port" );
 
     /* Set non-blocking mode on TCP socket */

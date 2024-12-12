@@ -3,6 +3,7 @@
 
 #include "include.h"
 #include "socket.h"
+#include "TIRCError.h"
 
 typedef struct {
     uint8_t mmver;          // Protocol version should always be set to <<MMVER>>

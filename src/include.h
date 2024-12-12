@@ -46,8 +46,4 @@
     Although I am not sure and maybe writing dedicated server would be better
 */
 
-void TIRCAssert(bool condition, const wchar_t *text);
-void TIRCriticalError(const wchar_t *text);
-void TIRCFormatError(int lasterror);
-
 #endif
