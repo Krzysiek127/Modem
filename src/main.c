@@ -1,21 +1,25 @@
 #include "screen.h"
 
-void TIRCAssert(int bool, wchar_t *text) {
-    if (!bool)  // Because it's assert
+void TIRCAssert(bool condition, const wchar_t *text) {
+    if (!condition)  // Because it's assert
         TIRCriticalError(text);
 }
 
-void TIRCriticalError(wchar_t *text) {
+void TIRCriticalError(const wchar_t *text) {
     MessageBoxW(NULL, text, PRG_NAME, MB_ICONERROR);
-
+    
     WSACleanup();
     exit(1);
 }
-SOCKET skMain, skBroad;     // TCP(2005) and UDP(2005)
 
 
-char ADDR[] = "127.0.0.1";
-USHORT TPORT = 2005, UPORT = 2005;
+// TCP(2005) and UDP(2005)
+SOCKET skMain, skBroad;
+
+const char ADDR[] = "127.0.0.1";
+USHORT TPORT = 2005;
+USHORT UPORT = 2005;
+
 
 int main(int argc, char **argv) {
     WSADATA wsa;
@@ -33,6 +37,7 @@ int main(int argc, char **argv) {
     udp.sin_addr.s_addr = INADDR_BROADCAST;
     udp.sin_port = htons(UPORT);
 
+    // not sure if this can be changed to normal bool
     BOOL broadcast = TRUE;
     TIRCAssert(
         setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) != SOCKET_ERROR,

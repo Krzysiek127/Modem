@@ -1,6 +1,5 @@
 CC=gcc 
-#CFLAGS=-MMD -Wall -Wextra -pedantic -std=c11
-CFLAGS=-g3
+CFLAGS=-MMD -Wall -Wextra -Wpedantic -Wconversion
 
 SRC=$(wildcard src/*.c)
 

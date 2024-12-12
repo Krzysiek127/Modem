@@ -1,6 +1,10 @@
-#include <stdio.h>      // Try to minimize it's use (nothing against it just design decision. Safely use it for debugging)
+#ifndef H_INCLUDE
+#define H_INCLUDE
+
+#include <stdio.h>   // Try to minimize it's use (nothing against it just design decision. Safely use it for debugging)
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h> // I recommend using stdbool for clarity
 #include <wchar.h>
 
 #include <time.h>
@@ -15,10 +19,11 @@
 #include <winsock2.h>
 #include <windows.h>
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
+// stdlib already defines __min()
+//#define MIN(a,b) (((a)<(b))?(a):(b))
 
-#define PRG_NAME    L"Modem"
-#define PRG_VER     L"0.1"
+#define PRG_NAME    (L"Modem")
+#define PRG_VER     (L"0.1")
 
 #define UDP_TIMEOUT 50
 #define TCP_SLEEP   100
@@ -35,9 +40,10 @@
     (so that it even works on dumb servers without advertising)
     Downside: Cannot keep connected users lists, allocate them an ID for better addressing etc
 
-    Although am not sure and maybe writing dedicated server would be better
+    Although I am not sure and maybe writing dedicated server would be better
 */
 
+void TIRCAssert(bool condition, const wchar_t *text);
+void TIRCriticalError(const wchar_t *text);
 
-void TIRCAssert(int bool, wchar_t *text);
-void TIRCriticalError(wchar_t *text);
+#endif

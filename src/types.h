@@ -10,12 +10,15 @@
 #define MAX_MOTD        160
 
 typedef struct {
-    uint8_t mmver;  // Protocol version should always be set to <<MMVER>>
+    uint8_t mmver;      // Protocol version should always be set to <<MMVER>>
     time_t  tm_timestamp;
     uint8_t uc_type;    // Message type (maybe should be changed to enum)
 
-    uint32_t u32_channel, u32_chmask;   // Channel so one server could serve many "group chats" and i thought about "channel masks" (something like subnet masks) so you could send a message
+    // Channel so one server could serve many "group chats" and i thought
+    // about "channel masks" (something like subnet masks)
+    // so you could send a message
     // to many channels at once (don't know if its useful tho)
+    uint32_t u32_channel, u32_chmask; 
 
     wchar_t wcs_username[MAX_USERNAME],
             wcs_body[MAX_BODY];
