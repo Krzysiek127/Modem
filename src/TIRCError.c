@@ -2,11 +2,11 @@
 
 
 void _TIRCAssert(const wchar_t *text, const wchar_t *file, const uint32_t line) {
-    wchar_t msg[256];
+    wchar_t msg[256] = {0};
     swprintf(
         msg, 256,
         L"TIRC ASSERTION FAILURE\nIn %ls:%lu\nCause %ls\n",
-        file, line, msg
+        file, line, (text)
     );
     TIRCriticalError(msg);
 }
