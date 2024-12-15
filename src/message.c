@@ -36,12 +36,13 @@ message_t *msg_setth(message_t **msgptr, uint32_t thread, uint32_t threadmask) {
 
 // Just a convention
 void msg_free(message_t *msg) {
-    free(msg);
+    if (msg != NULL)
+        free(msg);
 }
 
 
 /* High level functions */
-void msg_sendtext(wchar_t *message) {
+message_t *msg_sendtext(wchar_t *message) {
     message_t *msg = msg_create();
     msg_type(&msg, MTYPE_TEXT);
     msg_body(&msg, message);
@@ -49,15 +50,17 @@ void msg_sendtext(wchar_t *message) {
 
     if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR)
         TIRCFormatError( WSAGetLastError() );
+    
+    return msg;
 }
 
-// Returns NULL when on non-blocking
+// Returns NULL when no message was recv or shouldn't be displayed
 message_t *msg_recv(void) {
-    message_t *rcvmsg = NULL;
+    message_t *rcvmsg = calloc(1, sizeof(message_t)); // Idiot forgor to allocate memry
 
     int rcv = recv(*sck_getmainsock(), (char *)rcvmsg, sizeof(message_t), 0);
-    if (rcv >= 0)
-        return rcvmsg;
+    if (rcv > 0)
+        return msg_filter(&rcvmsg);
     
     /* Something happened */
     int err = WSAGetLastError();
@@ -68,6 +71,25 @@ message_t *msg_recv(void) {
 
     // For some reason it error here with
     // "an established connection was aborted by the software in your host machine"
-    
     TIRCFormatError(err);
+}
+
+
+static message_t *msg_filter(message_t **msg) {
+    wchar_t *wcs_addr = (*msg)->wcs_address;
+
+    // The message is not directed to us...
+    if (*wcs_addr != 0 && wcscmp(wcs_addr, wcs_current_user)) {
+        msg_free(*msg);
+        return NULL;
+    }
+
+    HANDLE hFileRecv;
+    switch((*msg)->uc_type) {
+        case MTYPE_TEXT:
+            return *msg;
+        case MTYPE_DATA_BEGIN:
+            // No if (shouldDownload) because if someone wants private send then just go into different thread
+            break;
+    }   
 }

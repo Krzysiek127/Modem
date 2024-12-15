@@ -29,7 +29,18 @@
 #define PRG_VER     (L"0.1")
 
 #define UDP_TIMEOUT 50
-#define TCP_SLEEP   100
+#define TCP_SLEEP   0
+
+void TIRCriticalError(const wchar_t *text);
+void TIRCFormatError(int lasterror);
+
+#define TIRCAssert(expr, text)  \
+do {                            \
+    if((expr)) {                \
+        TIRCriticalError(text); \
+    }                           \
+} while (0)
+
 /*
     Generally UDP would be used for server discovery and advertisiment so it needs timeout (Server selection before connecting)
     And TCP is set to non-blocking, the MSDN said after detecting WSAEWOULDBLOCK it should sleep for few miliseconds 

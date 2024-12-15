@@ -4,28 +4,20 @@
 wchar_t wcs_current_user[MAX_USERNAME];
 
 int main(int argc, char **argv) {
+    wcscpy(wcs_current_user, L"Krzysiek");
+
     sck_init();
     mm_scrint();
-    while (1) {
-        int ch;
-        switch (ch = mm_kbdin()) {
-            case 0:
-            case -1:
-                break;
-            case 27:
-                exit(0);
-                break;
-            case '\r':
-                msg_sendtext(L"Hello world!");
-                break;
-            default:
-                printf("%lc", (wchar_t)ch);
-                break;
-        }
+    mm_clearscr();
 
+    while (1) {
+        mm_kbdline();
+        mm_printlbuf();
         message_t *recv = msg_recv();
-        if (recv != NULL)
+        if (recv != NULL) {
+            mm_clearscr();
             mm_scroll(recv);
+        }
         
         mm_scrflush();
     }

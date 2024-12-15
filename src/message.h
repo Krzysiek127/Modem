@@ -3,7 +3,6 @@
 
 #include "include.h"
 #include "socket.h"
-#include "TIRCError.h"
 
 typedef struct {
     uint8_t mmver;          // Protocol version should always be set to <<MMVER>>
@@ -13,16 +12,29 @@ typedef struct {
     uint32_t u32_thread, u32_thmask;    // Changed channels to threads (sounds cooler)
 
     wchar_t wcs_username[MAX_USERNAME],
+            wcs_address[MAX_USERNAME],  // When NULL it means '*'
             wcs_body[MAX_BODY];
 
     uint32_t u32_argument;
 } message_t;
 
-void msg_sendtext(wchar_t *message);
+message_t *msg_sendtext(wchar_t *message);
 void msg_free(message_t *msg);
 message_t *msg_recv(void);
 
+
 #define MTYPE_TEXT 0
+
+#define MTYPE_DATA_BEGIN    1
+#define MTYPE_DATA          2
+#define MTYPE_DATA_END      3
+#define MTYPE_DATA_ERROR    4
+
+#define MTYPE_CONNECT       5
+#define MTYPE_DXCONNECT     6
+
+#define MTYPE_BROADCAST     7
+#define MTYPE_SHUTDOWN      8
 
 
 
