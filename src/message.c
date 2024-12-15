@@ -6,6 +6,11 @@ static uint32_t u32_thread = 0,
                 u32_mask   = 0xFFFFFFFF;
 // 0 is default thread to connect and it's P2P (message sent ONLY to this one)
 
+static DWORD written;
+
+/* Forward declarations for static functions */
+static message_t *msg_filter(message_t **msg);
+
 message_t *msg_create(void) {
     message_t *tmp = calloc(1, sizeof(message_t));
     tmp->mmver = MMVER;
@@ -13,6 +18,7 @@ message_t *msg_create(void) {
     wmemcpy(tmp->wcs_username, wcs_current_user, MAX_USERNAME);
     return tmp;
 }
+
 message_t *msg_type(message_t **msgptr, uint8_t type) {
     (*msgptr)->uc_type = type;
     return *msgptr;
@@ -74,12 +80,72 @@ message_t *msg_recv(void) {
     TIRCFormatError(err);
 }
 
+void msg_sendfile(wchar_t *path) {
+    HANDLE hFile = CreateFileW(
+        path,                
+        GENERIC_READ,            
+        FILE_SHARE_READ,         
+        NULL,                    
+        OPEN_EXISTING,           
+        FILE_ATTRIBUTE_NORMAL,   
+        NULL                     
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        MessageBoxW(NULL, L"Could not open the file!", L"File error", MB_ICONASTERISK);
+        return;
+    }
+
+    uint32_t byteSize = GetFileSize(hFile, NULL),
+             chunkSz  = byteSize / (MAX_BODY * sizeof(wchar_t)),
+             remSize  = byteSize % (MAX_BODY * sizeof(wchar_t));
+
+
+    /* Starting message */
+    message_t *begin = msg_create();
+    msg_type(&begin, MTYPE_DATA_BEGIN);
+    msg_body(&begin, (wchar_t*)PathFindFileNameW(path));
+    send(*sck_getmainsock(), (char*)begin, sizeof(message_t), 0);
+    msg_free(begin);
+
+    DWORD bytesRead;
+    for (uint32_t ch = 0; ch < chunkSz; ch++) {
+        message_t *data = msg_create();
+        msg_type(&data, MTYPE_DATA);
+        if (!ReadFile(hFile, data->wcs_body, MAX_BODY * sizeof(wchar_t), &bytesRead, NULL)) {   // ReadFile reads directly to message buffer
+            msg_type(&data, MTYPE_DATA_ERROR);
+        }
+        
+        send(*sck_getmainsock(), (char*)data, sizeof(message_t), 0);
+        msg_free(data);
+    }
+
+    /* Ending message */
+    message_t *end = msg_create();
+    msg_type(&end, MTYPE_DATA_END);
+    msg_uarg(&end, remSize);
+
+    if (!ReadFile(hFile, end->wcs_body, remSize, &bytesRead, NULL)) {
+        msg_type(&end, MTYPE_DATA_ERROR);
+    }
+    
+    send(*sck_getmainsock(), (char*)end, sizeof(message_t), 0);
+    msg_free(end);
+
+    CloseHandle(hFile);
+}
 
 static message_t *msg_filter(message_t **msg) {
     wchar_t *wcs_addr = (*msg)->wcs_address;
 
-    // The message is not directed to us...
+    // The message is not addressed to us...
     if (*wcs_addr != 0 && wcscmp(wcs_addr, wcs_current_user)) {
+        msg_free(*msg);
+        return NULL;
+    }
+
+    // Nor are we in the same thread and mask
+    if (((*msg)->u32_thread & (*msg)->u32_thmask) != (u32_thread & u32_mask)) {
         msg_free(*msg);
         return NULL;
     }
@@ -87,9 +153,35 @@ static message_t *msg_filter(message_t **msg) {
     HANDLE hFileRecv;
     switch((*msg)->uc_type) {
         case MTYPE_TEXT:
-            return *msg;
+            return *((*msg)->wcs_body) ? *msg : NULL;       // Beautiful; if the first byte of body is NULL then we return NULL or the message otherwise
         case MTYPE_DATA_BEGIN:
             // No if (shouldDownload) because if someone wants private send then just go into different thread
+            hFileRecv = CreateFileW(
+                    (*msg)->wcs_body,       // Filename is sent in the message body  
+                    GENERIC_WRITE,        
+                    0,                    
+                    NULL,                 
+                    CREATE_ALWAYS,        
+                    FILE_ATTRIBUTE_NORMAL,
+                    NULL                  
+            );
+            if (hFileRecv == INVALID_HANDLE_VALUE)
+                MessageBoxW(NULL, L"Could not create file!", L"File error", 0);
             break;
-    }   
+        case MTYPE_DATA:
+            if (hFileRecv != INVALID_HANDLE_VALUE)
+                WriteFile(hFileRecv, (*msg)->wcs_body, MAX_BODY * sizeof(wchar_t), &written, NULL);
+            break;
+        case MTYPE_DATA_END:
+            WriteFile(hFileRecv, (*msg)->wcs_body, (*msg)->u32_argument, &written, NULL);   // Write remaining bytes
+            CloseHandle(hFileRecv);
+            // TODO: Toast completion
+            break;
+        case MTYPE_DATA_ERROR:
+            MessageBoxW(NULL, L"File transfer error", L"Transfer error", MB_ICONEXCLAMATION);
+            CloseHandle(hFileRecv);
+            break;
+    }
+    msg_free(*msg);
+    return NULL;
 }

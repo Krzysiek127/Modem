@@ -21,7 +21,7 @@ typedef struct {
 message_t *msg_sendtext(wchar_t *message);
 void msg_free(message_t *msg);
 message_t *msg_recv(void);
-
+void msg_sendfile(wchar_t *path);
 
 #define MTYPE_TEXT 0
 

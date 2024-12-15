@@ -7,7 +7,7 @@ OBJ=$(SRC:%.c=%.o)
 DEP=$(OBJ:%.o=%.d)
 
 EXE=Modem
-LIBS=$(addprefix -l,m ws2_32)
+LIBS=$(addprefix -l,m ws2_32 shlwapi comdlg32 ole32 shell32 uuid)
 
 TARGET=/usr/local
 

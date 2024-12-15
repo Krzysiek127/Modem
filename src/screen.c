@@ -1,5 +1,6 @@
 #include "screen.h"
-#include <math.h>
+#include "dlgbox.h"
+
 
 #define START_LINE 3
 
@@ -28,6 +29,17 @@ void mm_kbdline(void) {
             exit(0);
             break;
         case '\r':
+            if (wcs_linebuf[0] == 0)    // Dont send empty message
+                break;
+
+            if (wcs_linebuf[0] == L'S') {
+                wchar_t *sfn = OpenFileDialog();
+        
+                msg_sendfile( sfn );
+                free(sfn);
+                break;
+            }
+            
             message_t *sdmsg = msg_sendtext(wcs_linebuf);
             mm_scroll(sdmsg);
             mm_clearbuf();
