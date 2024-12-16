@@ -1,10 +1,9 @@
 #include "message.h"
 
 extern wchar_t wcs_current_user[MAX_USERNAME];
+extern wchar_t wcs_toastbuf[MAX_TOAST];
 
-static uint32_t u32_thread = 0,
-                u32_mask   = 0xFFFFFFFF;
-// 0 is default thread to connect and it's P2P (message sent ONLY to this one)
+static uint32_t u32_thread = 0;
 
 static DWORD written;
 
@@ -34,12 +33,20 @@ message_t *msg_uarg(message_t **msgptr, uint32_t arg) {
     return *msgptr;
 }
 
-message_t *msg_setth(message_t **msgptr, uint32_t thread, uint32_t threadmask) {
+message_t *msg_setth(message_t **msgptr, uint32_t thread) {
     (*msgptr)->u32_thread = thread;
-    (*msgptr)->u32_thmask = threadmask;
     return *msgptr;
 }
 
+message_t *msg_setflag(message_t **msgptr, uint8_t flags) {
+    (*msgptr)->uc_flags = flags;
+    return *msgptr;
+}
+
+message_t *msg_addr(message_t **msgptr, wchar_t *addr) {
+    wmemcpy((*msgptr)->wcs_address, addr, __min(wcslen(addr), MAX_USERNAME));
+    return *msgptr;
+}
 // Just a convention
 void msg_free(message_t *msg) {
     if (msg != NULL)
@@ -48,11 +55,15 @@ void msg_free(message_t *msg) {
 
 
 /* High level functions */
-message_t *msg_sendtext(wchar_t *message) {
+message_t *msg_sendtext(wchar_t *message, wchar_t *address) {
     message_t *msg = msg_create();
     msg_type(&msg, MTYPE_TEXT);
     msg_body(&msg, message);
-    msg_setth(&msg, u32_thread, u32_mask);
+
+    if (address != NULL)
+        msg_addr(&msg, address);
+    
+    msg_setth(&msg, u32_thread);
 
     if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR)
         TIRCFormatError( WSAGetLastError() );
@@ -134,28 +145,42 @@ void msg_sendfile(wchar_t *path) {
 
     CloseHandle(hFile);
 }
+uint32_t get_current_thread(void) {
+    return u32_thread;
+}
+void set_current_thread(uint32_t th) {
+    u32_thread = th;
+}
 
 static message_t *msg_filter(message_t **msg) {
     wchar_t *wcs_addr = (*msg)->wcs_address;
-
+    
     // The message is not addressed to us...
     if (*wcs_addr != 0 && wcscmp(wcs_addr, wcs_current_user)) {
         msg_free(*msg);
         return NULL;
     }
-
-    // Nor are we in the same thread and mask
-    if (((*msg)->u32_thread & (*msg)->u32_thmask) != (u32_thread & u32_mask)) {
+    
+    // Check if message has a flag telling it not to check thread TODO: Replace goto with if
+    if ((*msg)->uc_flags & MFLAG_BROADCAST)
+        goto skip_thread_check;
+    
+    // Nor are we in the same thread
+    if ((*msg)->u32_thread != u32_thread) {
         msg_free(*msg);
         return NULL;
     }
 
-    HANDLE hFileRecv;
+skip_thread_check:
+    static HANDLE hFileRecv;    /* Without static, the function would override the object because it's called many many times */
     switch((*msg)->uc_type) {
         case MTYPE_TEXT:
             return *((*msg)->wcs_body) ? *msg : NULL;       // Beautiful; if the first byte of body is NULL then we return NULL or the message otherwise
         case MTYPE_DATA_BEGIN:
             // No if (shouldDownload) because if someone wants private send then just go into different thread
+            if (!wcscmp(wcs_addr, wcs_current_user)) // This prevents the file being downloaded to the user sending it
+                break;
+            
             hFileRecv = CreateFileW(
                     (*msg)->wcs_body,       // Filename is sent in the message body  
                     GENERIC_WRITE,        
@@ -166,7 +191,7 @@ static message_t *msg_filter(message_t **msg) {
                     NULL                  
             );
             if (hFileRecv == INVALID_HANDLE_VALUE)
-                MessageBoxW(NULL, L"Could not create file!", L"File error", 0);
+                mm_toast(L"The file cannot be downloaded");
             break;
         case MTYPE_DATA:
             if (hFileRecv != INVALID_HANDLE_VALUE)
@@ -175,7 +200,6 @@ static message_t *msg_filter(message_t **msg) {
         case MTYPE_DATA_END:
             WriteFile(hFileRecv, (*msg)->wcs_body, (*msg)->u32_argument, &written, NULL);   // Write remaining bytes
             CloseHandle(hFileRecv);
-            // TODO: Toast completion
             break;
         case MTYPE_DATA_ERROR:
             MessageBoxW(NULL, L"File transfer error", L"Transfer error", MB_ICONEXCLAMATION);

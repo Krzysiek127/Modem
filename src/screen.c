@@ -7,6 +7,10 @@
 HANDLE hInput, hOutput;
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
+wchar_t wcs_toastbuf[MAX_TOAST];
+
+extern wchar_t wcs_current_user[MAX_USERNAME];
+
 #define VECTOR_LENGTH   10
 static message_t *msg_vector[VECTOR_LENGTH];
 
@@ -18,6 +22,22 @@ static DWORD written;
 /* Forward declaration for static functions */
 static void mm_msgformat(message_t *msg);
 static void mm_clearbuf(void);
+
+
+void mm_toast(const wchar_t *format, ...) {
+    va_list argptr;
+
+    va_start(argptr, format);
+    vswprintf(wcs_toastbuf, MAX_TOAST, format, argptr);
+    va_end(argptr);
+}
+
+void mm_vectorClear(void) {
+    for (int i = 0; i < VECTOR_LENGTH; i++) {
+        msg_free( msg_vector[i] );
+        msg_vector[i] = NULL;
+    }
+}
 
 void mm_kbdline(void) {
     int ch;
@@ -32,16 +52,33 @@ void mm_kbdline(void) {
             if (wcs_linebuf[0] == 0)    // Dont send empty message
                 break;
 
-            if (wcs_linebuf[0] == L'S') {
+            if (!wcscmp(wcs_linebuf, L"/send")) {
                 wchar_t *sfn = OpenFileDialog();
         
                 msg_sendfile( sfn );
                 free(sfn);
-                break;
+                goto clear_then_exit_switch;
             }
+            if (!wcsncmp(wcs_linebuf, L"/thread+", 8)) {
+                set_current_thread( wcstou32(wcs_linebuf + 8) );
+                mm_toast(L"Connected to thread %u", get_current_thread());
+                
+                goto clear_then_exit_switch;
+            }
+
+            wchar_t *priv = NULL;
+            size_t privOffset = 0;
+
+            if (!wcsncmp(wcs_linebuf, L"/priv+", 6)) {
+                privOffset = wcs_scan(wcs_linebuf + 6);
+                priv = wcs_copy_n(wcs_linebuf + 6, privOffset - 1);
+            }
+
+            //mm_toast(L"Privately sent to [%ls]", priv);
             
-            message_t *sdmsg = msg_sendtext(wcs_linebuf);
+            message_t *sdmsg = msg_sendtext(wcs_linebuf + 6 + privOffset, priv);
             mm_scroll(sdmsg);
+clear_then_exit_switch:
             mm_clearbuf();
             break;
         case '\b':
@@ -50,14 +87,18 @@ void mm_kbdline(void) {
             mm_clearscr();
             break;
         default:
-            if (lbuf_index < MAX_BODY)
+            if (lbuf_index < MAX_BODY && isprint(ch))
                 wcs_linebuf[lbuf_index++] = (wchar_t)ch;
             break;
     }
 }
 void mm_printlbuf(void) {
     SetConsoleCursorPosition(hOutput, (COORD) {0, 0});
+    wprintf(L"%ls@%u> ", wcs_current_user, get_current_thread());
     WriteConsoleW(hOutput, wcs_linebuf, lbuf_index, &written, NULL);
+
+    SetConsoleCursorPosition(hOutput, (COORD) {0, 1});
+    WriteConsoleW(hOutput, wcs_toastbuf, MAX_TOAST, &written, NULL);
 }
 
 /* Normal functions */
@@ -124,14 +165,21 @@ static void mm_msgformat(message_t *msg) {
         SetConsoleTextAttribute(hOutput, FOREGROUND_RED);
         WriteConsoleW( hOutput, L"PRIV ", 6, &written, NULL );
     }
+    SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
+
+    /* For now okay??? */
+    printf("%u+", msg->u32_thread);
 
     SetConsoleTextAttribute(hOutput, FOREGROUND_GREEN);
     WriteConsoleW(hOutput, msg->wcs_username, MAX_USERNAME, &written, NULL);   // I'm not sure MAX_USERNAME is correct here
+
 
     SetConsoleTextAttribute(hOutput, FOREGROUND_INTENSITY);
     WriteConsoleW(hOutput, L"> ", 3, &written, NULL);
 
     SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
+
+   
 
     BOOL shouldRender = TRUE;
     WORD wTextAttr = 0;

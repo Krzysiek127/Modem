@@ -19,11 +19,12 @@
 #include <winsock2.h>
 #include <windows.h>
 
-
 #define MMVER   0x10
 #define MAX_USERNAME    24
 #define MAX_BODY        80
 #define MAX_MOTD        160
+#define MAX_TOAST       120
+
 #define FOREGROUND_DEFAULT  (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
 #define PRG_NAME    (L"Modem")
 #define PRG_VER     (L"0.1")
@@ -33,6 +34,11 @@
 
 void TIRCriticalError(const wchar_t *text);
 void TIRCFormatError(int lasterror);
+
+uint32_t wcstou32(wchar_t *wcs);
+void mm_toast(const wchar_t *format, ...);
+wchar_t* wcs_copy_n(const wchar_t* source, size_t n);
+size_t wcs_scan(const wchar_t *src);
 
 #define TIRCAssert(expr, text)  \
 do {                            \

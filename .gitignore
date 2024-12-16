@@ -3,6 +3,7 @@
 .vscode/*
 *.bin
 *.jpg
+*.png
 
 # Prerequisites
 *.d

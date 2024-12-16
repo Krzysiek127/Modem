@@ -1,4 +1,5 @@
 #include "screen.h"
+#include "message.h"
 
 // All-Project globals
 wchar_t wcs_current_user[MAX_USERNAME];
@@ -9,6 +10,12 @@ int main(int argc, char **argv) {
     sck_init();
     mm_scrint();
     mm_clearscr();
+
+    message_t *conn = msg_create();
+    msg_type(&conn, MTYPE_CONNECT);
+    msg_setflag(&conn, MFLAG_BROADCAST);
+    msg_setth(&conn, get_current_thread());
+    send(*sck_getmainsock(), (const char*)conn, sizeof(message_t), 0);
 
     while (1) {
         mm_kbdline();
