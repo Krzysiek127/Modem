@@ -161,6 +161,12 @@ void set_current_thread(uint32_t th) {
 static message_t *msg_filter(message_t **msg) {
     wchar_t *wcs_addr = (*msg)->wcs_address;
 
+    if ((*msg)->mmver != MMVER) {
+        mm_toast(L"Message with invalid protocol version received");
+        msg_free(*msg);
+        return NULL;
+    }
+
     // CRC32 check
     if (crc32(*msg, sizeof(message_t) - sizeof(uint32_t)) != (*msg)->u32_checksum) {
         mm_toast(L"Message with invalid CRC32 received!");

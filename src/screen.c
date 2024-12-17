@@ -30,6 +30,8 @@ void mm_toast(const wchar_t *format, ...) {
     va_start(argptr, format);
     vswprintf(wcs_toastbuf, MAX_TOAST, format, argptr);
     va_end(argptr);
+
+    mm_clearscr();
 }
 
 void mm_vectorClear(void) {
@@ -97,7 +99,7 @@ void mm_kbdline(void) {
             message_t *sdmsg = msg_sendtext(wcs_linebuf + privOffset, priv);    // Create message
 
             // If line CONTAINS $PING then set the flag
-            if (!wcsstr(wcs_linebuf, L"$PING") != 0) {
+            if (!wcsstr(wcs_linebuf, L"!PING") != 0) {
                 msg_setflag(&sdmsg, sdmsg->uc_flags | MFLAG_PING);
             }
 
