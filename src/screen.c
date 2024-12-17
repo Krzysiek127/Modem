@@ -1,5 +1,4 @@
 #include "screen.h"
-#include "dlgbox.h"
 
 
 #define START_LINE 3
@@ -49,17 +48,18 @@ void mm_curvis(WINBOOL state) {     // Cursor visiblity not Kurvinox XDDD
 }
 
 void mm_kbdline(void) {
-    int ch;
-    switch (ch = mm_kbdin()) {
+    const int ch = mm_kbdin();
+
+    switch (ch) {
         case 0:     // Invalid chars
-        case -1:
-            break;
+        case -1: break;
         case 27:    // ESC
             message_t *dxconn = msg_create();
-            msg_type(&dxconn, MTYPE_DXCONNECT);
+            msg_type(&dxconn, MSG_DXCONNECT);
             msg_setflag(&dxconn, MFLAG_BROADCAST);
             msg_setth(&dxconn, get_current_thread());
-            sck_sendmsg(dxconn);
+
+            sendMSG(dxconn);
 
             mm_curvis(TRUE);
             exit(0);
@@ -159,6 +159,7 @@ void mm_clearscr(void) {
 
     SetConsoleCursorPosition(hOutput, (COORD){0, 0});
 }
+
 void mm_scroll(message_t *new) {
     msg_free(msg_vector[0]);
     for (size_t i = 0; i < VECTOR_LENGTH; i++) {    // Add display limit depending on term resolution

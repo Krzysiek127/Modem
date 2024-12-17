@@ -2,6 +2,7 @@
 #define H_SCREEN
 
 #include "message.h"
+#include "dlgbox.h"
 
 void mm_scrint(void);
 void mm_scroll(message_t *new);

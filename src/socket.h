@@ -3,8 +3,12 @@
 
 #include "include.h"
 
-void sck_init(void);
-SOCKET *sck_getmainsock(void);
-SOCKET *sck_getbroadsock(void);
+// initialize tcp and upd socket connections
+void sockInit(void);
+
+void sockSend(const void *data, const int size);
+
+// true if recv returns value greater than 0
+bool sockRecieve(void *buff, const int size);
 
 #endif

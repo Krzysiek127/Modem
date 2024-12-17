@@ -17,9 +17,8 @@ static inline bool inspectUserFile(void) {
         TIRCriticalError(L"Username file could not be read");
     
     fseek(fUserFile, 0L, SEEK_END);
-    const size_t fSize = ftell(fUserFile);
 
-    if (fSize != MAX_USERNAME * sizeof(wchar_t))
+    if (ftell(fUserFile) != MAX_USERNAME * sizeof(wchar_t))
         TIRCriticalError(L"Invalid username stored! Delete the file");
     
     rewind(fUserFile);
@@ -30,7 +29,7 @@ static inline bool inspectUserFile(void) {
 }
 
 
-int main(int argc, char **argv) {
+int main(void) {
     if (inspectUserFile()) {
         wprintf(L"No username file!\nNew username> ");
 
@@ -49,22 +48,22 @@ int main(int argc, char **argv) {
     }
 
     //wcscpy(wcs_current_user, L"Krzysiek");
-    sck_init();
+    sockInit();
     mm_curvis(FALSE);
 
     mm_scrint();
     mm_clearscr();
 
     message_t *conn = msg_create();
-    msg_type(&conn, MTYPE_CONNECT);
+    msg_type(&conn, MSG_CONNECT);
     msg_setflag(&conn, MFLAG_BROADCAST);
     msg_setth(&conn, get_current_thread());
-    sck_sendmsg(conn);
+    sendMSG(conn);
 
     while (1) {
         mm_kbdline();
         mm_printlbuf();
-        message_t *recv = msg_recv();
+        message_t *recv = recvMSG();
         if (recv != NULL) {
             mm_clearscr();
             mm_scroll(recv);

@@ -3,54 +3,82 @@
 static SOCKET skMain, skBroad;
 
 const char ADDR[] = "127.0.0.1";
-USHORT TPORT = 2005;
-USHORT UPORT = 2005;
 
+static inline void sockInitUDP(const uint16_t port) {
+    TIRCAssert(
+        (skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET,
+        L"Failed to initialize UDP socket"
+    );
 
-void sck_init(void) {
-    WSADATA wsa;
+    struct sockaddr_in UDP;
+    UDP.sin_family =      AF_INET;
+    UDP.sin_addr.s_addr = INADDR_BROADCAST;
+    UDP.sin_port =        htons(port);
 
-    TIRCAssert(WSAStartup( MAKEWORD(2, 2), &wsa ) != 0, L"Failed to initialize Winsock 2.2");
-    TIRCAssert((skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET, L"Failed to initialize TCP socket");
-    TIRCAssert((skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET, L"Failed to initialize UDP socket");
-    
-    struct sockaddr_in tcp, udp;
-    tcp.sin_family = AF_INET;
-    tcp.sin_addr.s_addr = inet_addr(ADDR);
-    tcp.sin_port = htons(TPORT);
+    TIRCAssert(
+        bind(skBroad, (struct sockaddr*)&UDP, sizeof(UDP)) != SOCKET_ERROR,
+        L"Failed to bind UDP port"
+    );
 
-    udp.sin_family = AF_INET;
-    udp.sin_addr.s_addr = INADDR_BROADCAST;
-    udp.sin_port = htons(UPORT);
-
-    // not sure if this can be changed to normal bool
-    BOOL broadcast = TRUE;
+    bool broadcast = true;
     TIRCAssert(
         setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) == SOCKET_ERROR,
         L"Failed to set broadcast option on UDP socket"
     );
 
-    TIRCAssert( connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) == SOCKET_ERROR, L"Failed to establish a connection to host over TCP" );
-    //TIRCAssert( bind(skBroad, (struct sockaddr*)&udp, sizeof(udp)) != SOCKET_ERROR, L"Failed to bind UDP port" );
-
-    /* Set non-blocking mode on TCP socket */
-    u_long mode = 1;
-    ioctlsocket(skMain, FIONBIO, &mode);
-
     /* Set timeout on UDP socket */
     int timeout = UDP_TIMEOUT;
-    if (setsockopt(skBroad, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+
+    if (setsockopt(skBroad, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
         TIRCriticalError(L"Failed to set receive timeout");
-    }
-    if (setsockopt(skBroad, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+
+    if (setsockopt(skBroad, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
         TIRCriticalError(L"Failed to set send timeout");
-    }
 }
 
-SOCKET *sck_getmainsock(void) {
-    return &skMain;
+
+static inline void sockInitTCP(const uint16_t port) {
+    TIRCAssert(
+        (skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET,
+        L"Failed to initialize TCP socket"
+    );
+
+    struct sockaddr_in TCP;
+    TCP.sin_family =      AF_INET;
+    TCP.sin_addr.s_addr = inet_addr(ADDR);
+    TCP.sin_port =        htons(port);
+
+    TIRCAssert(
+        connect(skMain, (SOCKADDR*)&TCP, sizeof(TCP)) == SOCKET_ERROR,
+        L"Failed to establish a connection to host over TCP"
+    );
+
+    // Set non-blocking mode
+    u_long mode = 1;
+    ioctlsocket(skMain, FIONBIO, &mode);
 }
 
-SOCKET *sck_getbroadsock(void) {
-    return &skBroad;
+
+void sockInit(void) {
+    WSADATA wsa;
+
+    TIRCAssert(
+        WSAStartup(MAKEWORD(2, 2), &wsa) != 0,
+        L"Failed to initialize Winsock 2.2"
+    );
+
+    sockInitTCP(2005);
+    //sockInnitUDP(2005);
+}
+
+
+void sockSend(const void *data, const int size) {
+
+    if (send(skMain, (const char*)data, size, 0) == SOCKET_ERROR)
+        TIRCFormatError(WSAGetLastError());
+}
+
+bool sockRecieve(void *buff, const int size) {
+
+    return (recv(skMain, (char *)buff, size, 0) > 0);
 }

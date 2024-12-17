@@ -10,12 +10,39 @@ static DWORD written;
 /* Forward declarations for static functions */
 static message_t *msg_filter(message_t **msg);
 
-void sck_sendmsg(message_t *msg) {
+
+/* Socket interactions */
+
+void sendMSG(message_t *msg) {
     msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude chksum itself
 
-    if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR)
-        TIRCFormatError( WSAGetLastError() );
+    sockSend(msg, sizeof(message_t));
 }
+
+// Returns NULL when no message was recv or shouldn't be displayed
+message_t *recvMSG(void) {
+    message_t *rcvmsg = calloc(1, sizeof(message_t)); // Idiot forgor to allocate memry
+
+    if (sockRecieve(rcvmsg, sizeof(message_t)))
+        return msg_filter(&rcvmsg);
+    
+    /* Something happened */
+    msg_free(rcvmsg);
+    int err = WSAGetLastError();
+    if (err == WSAEWOULDBLOCK) {
+        Sleep(TCP_SLEEP);
+        return NULL;
+    }
+
+    TIRCFormatError(err);
+
+    // compilers sometimes see that a function in some cases does not return
+    // a value even when in those cases program terminates..
+    // so here it is.
+    return NULL;
+}
+
+
 
 message_t *msg_create(void) {
     message_t *tmp = calloc(1, sizeof(message_t));
@@ -54,6 +81,7 @@ message_t *msg_addr(message_t **msgptr, wchar_t *addr) {
     wmemcpy((*msgptr)->wcs_address, addr, __min(wcslen(addr), MAX_USERNAME));
     return *msgptr;
 }
+
 // Just a convention
 void msg_free(message_t *msg) {
     if (msg != NULL)
@@ -64,7 +92,7 @@ void msg_free(message_t *msg) {
 /* High level functions */
 message_t *msg_sendtext(wchar_t *message, wchar_t *address) {
     message_t *msg = msg_create();
-    msg_type(&msg, MTYPE_TEXT);
+    msg_type(&msg, MSG_TEXT);
     msg_body(&msg, message);
 
     if (address != NULL)
@@ -72,30 +100,11 @@ message_t *msg_sendtext(wchar_t *message, wchar_t *address) {
     
     msg_setth(&msg, u32_thread);
 
-    sck_sendmsg(msg);
+    sendMSG(msg);
     
     return msg;
 }
 
-// Returns NULL when no message was recv or shouldn't be displayed
-message_t *msg_recv(void) {
-    message_t *rcvmsg = calloc(1, sizeof(message_t)); // Idiot forgor to allocate memry
-
-    int rcv = recv(*sck_getmainsock(), (char *)rcvmsg, sizeof(message_t), 0);
-    if (rcv > 0)
-        return msg_filter(&rcvmsg);
-    
-    /* Something happened */
-    int err = WSAGetLastError();
-    if (err == WSAEWOULDBLOCK) {
-        Sleep(TCP_SLEEP);
-        return NULL;
-    }
-
-    // For some reason it error here with
-    // "an established connection was aborted by the software in your host machine"
-    TIRCFormatError(err);
-}
 
 void msg_sendfile(wchar_t *path) {
     HANDLE hFile = CreateFileW(
@@ -113,40 +122,41 @@ void msg_sendfile(wchar_t *path) {
         return;
     }
 
-    uint32_t byteSize = GetFileSize(hFile, NULL),
-             chunkSz  = byteSize / (MAX_BODY * sizeof(wchar_t)),
-             remSize  = byteSize % (MAX_BODY * sizeof(wchar_t));
+    const uint32_t byteSize = GetFileSize(hFile, NULL);
+
+    uint32_t chunkSz  = byteSize / (MAX_BODY * sizeof(wchar_t));
+    uint32_t remSize  = byteSize % (MAX_BODY * sizeof(wchar_t));
 
 
     /* Starting message */
     message_t *begin = msg_create();
-    msg_type(&begin, MTYPE_DATA_BEGIN);
-    msg_body(&begin, (wchar_t*)PathFindFileNameW(path));
-    sck_sendmsg(begin);
+    msg_type(&begin, MSG_DATA_BEGIN);
+    msg_body(&begin, PathFindFileNameW(path));
+    sendMSG(begin);
     msg_free(begin);
 
     DWORD bytesRead;
     for (uint32_t ch = 0; ch < chunkSz; ch++) {
         message_t *data = msg_create();
-        msg_type(&data, MTYPE_DATA);
-        if (!ReadFile(hFile, data->wcs_body, MAX_BODY * sizeof(wchar_t), &bytesRead, NULL)) {   // ReadFile reads directly to message buffer
-            msg_type(&data, MTYPE_DATA_ERROR);
-        }
+        msg_type(&data, MSG_DATA);
+
+        // ReadFile reads directly to message buffer
+        if (!ReadFile(hFile, data->wcs_body, sizeof(data->wcs_body), &bytesRead, NULL))
+            msg_type(&data, MSG_DATA_ERROR);
         
-        sck_sendmsg(data);
+        sendMSG(data);
         msg_free(data);
     }
 
     /* Ending message */
     message_t *end = msg_create();
-    msg_type(&end, MTYPE_DATA_END);
+    msg_type(&end, MSG_DATA_END);
     msg_uarg(&end, remSize);
 
-    if (!ReadFile(hFile, end->wcs_body, remSize, &bytesRead, NULL)) {
-        msg_type(&end, MTYPE_DATA_ERROR);
-    }
+    if (!ReadFile(hFile, end->wcs_body, remSize, &bytesRead, NULL))
+        msg_type(&end, MSG_DATA_ERROR);
     
-    sck_sendmsg(end);
+    sendMSG(end);
     msg_free(end);
 
     CloseHandle(hFile);
@@ -199,47 +209,48 @@ skip_thread_check:
     }
     static HANDLE hFileRecv;    /* Without static, the function would override the object because it's called many many times */
     switch((*msg)->uc_type) {
-        case MTYPE_TEXT:
+        case MSG_TEXT:
             return *((*msg)->wcs_body) ? *msg : NULL;       // Beautiful; if the first byte of body is NULL then we return NULL or the message otherwise
-        case MTYPE_DATA_BEGIN:
+        case MSG_DATA_BEGIN:
             // No if (shouldDownload) because if someone wants private send then just go into different thread
             if (!wcscmp(wcs_addr, wcs_current_user)) // This prevents the file being downloaded to the user sending it
                 break;
             
             hFileRecv = CreateFileW(
-                    (*msg)->wcs_body,       // Filename is sent in the message body  
-                    GENERIC_WRITE,        
-                    0,                    
-                    NULL,                 
-                    CREATE_ALWAYS,        
-                    FILE_ATTRIBUTE_NORMAL,
-                    NULL                  
+                (*msg)->wcs_body,       // Filename is sent in the message body  
+                GENERIC_WRITE,        
+                0,                    
+                NULL,                 
+                CREATE_ALWAYS,        
+                FILE_ATTRIBUTE_NORMAL,
+                NULL                  
             );
+
             if (hFileRecv == INVALID_HANDLE_VALUE)
                 mm_toast(L"The file cannot be downloaded");
             break;
         
-        case MTYPE_DATA:
+        case MSG_DATA:
             if (hFileRecv != INVALID_HANDLE_VALUE)
                 WriteFile(hFileRecv, (*msg)->wcs_body, MAX_BODY * sizeof(wchar_t), &written, NULL);
             break;
-        case MTYPE_DATA_END:
+        case MSG_DATA_END:
             WriteFile(hFileRecv, (*msg)->wcs_body, (*msg)->u32_argument, &written, NULL);   // Write remaining bytes
             CloseHandle(hFileRecv);
             break;
-        case MTYPE_DATA_ERROR:
+        case MSG_DATA_ERROR:
             MessageBoxW(NULL, L"File transfer error", L"Transfer error", MB_ICONEXCLAMATION);
             CloseHandle(hFileRecv);
             break;
         
-        case MTYPE_CONNECT:
+        case MSG_CONNECT:
             mm_toast(L"%ls joined!", (*msg)->wcs_username);
             break;
-        case MTYPE_DXCONNECT:
+        case MSG_DXCONNECT:
             mm_toast(L"%ls left!", (*msg)->wcs_username);
             break;
         
-        case MTYPE_SHUTDOWN:
+        case MSG_SHUTDOWN:
             MessageBoxW_Format(L"You've been kicked from the server by %ls", (*msg)->wcs_username);
             exit(0);
             break;
