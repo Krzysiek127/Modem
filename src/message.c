@@ -10,6 +10,13 @@ static DWORD written;
 /* Forward declarations for static functions */
 static message_t *msg_filter(message_t **msg);
 
+void sck_sendmsg(message_t *msg) {
+    msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude chksum itself
+
+    if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR)
+        TIRCFormatError( WSAGetLastError() );
+}
+
 message_t *msg_create(void) {
     message_t *tmp = calloc(1, sizeof(message_t));
     tmp->mmver = MMVER;
@@ -65,8 +72,7 @@ message_t *msg_sendtext(wchar_t *message, wchar_t *address) {
     
     msg_setth(&msg, u32_thread);
 
-    if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR)
-        TIRCFormatError( WSAGetLastError() );
+    sck_sendmsg(msg);
     
     return msg;
 }
@@ -116,7 +122,7 @@ void msg_sendfile(wchar_t *path) {
     message_t *begin = msg_create();
     msg_type(&begin, MTYPE_DATA_BEGIN);
     msg_body(&begin, (wchar_t*)PathFindFileNameW(path));
-    send(*sck_getmainsock(), (char*)begin, sizeof(message_t), 0);
+    sck_sendmsg(begin);
     msg_free(begin);
 
     DWORD bytesRead;
@@ -127,7 +133,7 @@ void msg_sendfile(wchar_t *path) {
             msg_type(&data, MTYPE_DATA_ERROR);
         }
         
-        send(*sck_getmainsock(), (char*)data, sizeof(message_t), 0);
+        sck_sendmsg(data);
         msg_free(data);
     }
 
@@ -140,7 +146,7 @@ void msg_sendfile(wchar_t *path) {
         msg_type(&end, MTYPE_DATA_ERROR);
     }
     
-    send(*sck_getmainsock(), (char*)end, sizeof(message_t), 0);
+    sck_sendmsg(end);
     msg_free(end);
 
     CloseHandle(hFile);
@@ -154,12 +160,19 @@ void set_current_thread(uint32_t th) {
 
 static message_t *msg_filter(message_t **msg) {
     wchar_t *wcs_addr = (*msg)->wcs_address;
-    
-    // The message is not addressed to us...
-    if (*wcs_addr != 0 && wcscmp(wcs_addr, wcs_current_user)) {
+
+    // CRC32 check
+    if (crc32(*msg, sizeof(message_t) - sizeof(uint32_t)) != (*msg)->u32_checksum) {
+        mm_toast(L"Message with invalid CRC32 received!");
         msg_free(*msg);
         return NULL;
     }
+
+    // The message is not addressed to us...
+    if (wcs_addr[0] != L'\0' && wcscmp(wcs_addr, wcs_current_user) != 0) {
+        msg_free(*msg);
+        return NULL;
+    }   
     
     // Check if message has a flag telling it not to check thread TODO: Replace goto with if
     if ((*msg)->uc_flags & MFLAG_BROADCAST)
@@ -172,6 +185,12 @@ static message_t *msg_filter(message_t **msg) {
     }
 
 skip_thread_check:
+    // PING flag
+    if ((*msg)->uc_flags & MFLAG_PING) {
+        MessageBeep(MB_ICONASTERISK);
+        msg_free(*msg);
+        return NULL;
+    }
     static HANDLE hFileRecv;    /* Without static, the function would override the object because it's called many many times */
     switch((*msg)->uc_type) {
         case MTYPE_TEXT:
@@ -193,6 +212,7 @@ skip_thread_check:
             if (hFileRecv == INVALID_HANDLE_VALUE)
                 mm_toast(L"The file cannot be downloaded");
             break;
+        
         case MTYPE_DATA:
             if (hFileRecv != INVALID_HANDLE_VALUE)
                 WriteFile(hFileRecv, (*msg)->wcs_body, MAX_BODY * sizeof(wchar_t), &written, NULL);
@@ -204,6 +224,18 @@ skip_thread_check:
         case MTYPE_DATA_ERROR:
             MessageBoxW(NULL, L"File transfer error", L"Transfer error", MB_ICONEXCLAMATION);
             CloseHandle(hFileRecv);
+            break;
+        
+        case MTYPE_CONNECT:
+            mm_toast(L"%ls joined!", (*msg)->wcs_username);
+            break;
+        case MTYPE_DXCONNECT:
+            mm_toast(L"%ls left!", (*msg)->wcs_username);
+            break;
+        
+        case MTYPE_SHUTDOWN:
+            MessageBoxW_Format(L"You've been kicked from the server by %ls", (*msg)->wcs_username);
+            exit(0);
             break;
     }
     msg_free(*msg);

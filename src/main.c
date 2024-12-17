@@ -8,6 +8,8 @@ int main(int argc, char **argv) {
     wcscpy(wcs_current_user, L"Krzysiek");
 
     sck_init();
+    mm_curvis(FALSE);
+    
     mm_scrint();
     mm_clearscr();
 
@@ -15,7 +17,7 @@ int main(int argc, char **argv) {
     msg_type(&conn, MTYPE_CONNECT);
     msg_setflag(&conn, MFLAG_BROADCAST);
     msg_setth(&conn, get_current_thread());
-    send(*sck_getmainsock(), (const char*)conn, sizeof(message_t), 0);
+    sck_sendmsg(conn);
 
     while (1) {
         mm_kbdline();

@@ -7,6 +7,20 @@ void TIRCriticalError(const wchar_t *msg) {
     exit(1);
 }
 
+// Maximum format length is 230
+void MessageBoxW_Format(const wchar_t *format, ...) {
+    va_list argptr;
+
+    if (wcslen(format) > 230)
+        return;
+    
+    wchar_t buffer[256];
+    
+    va_start(argptr, format);
+    vswprintf(buffer, 256, format, argptr);
+    va_end(argptr);
+}
+
 
 void TIRCFormatError(int lasterror) {
     wchar_t *s = NULL;

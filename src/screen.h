@@ -10,5 +10,6 @@ int mm_kbdin(void);
 void mm_kbdline(void);
 void mm_clearscr(void);
 void mm_printlbuf(void);
+void mm_curvis(WINBOOL state);
 
 #endif

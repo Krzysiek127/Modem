@@ -39,19 +39,34 @@ void mm_vectorClear(void) {
     }
 }
 
+void mm_curvis(WINBOOL state) {     // Cursor visiblity not Kurvinox XDDD
+    CONSOLE_CURSOR_INFO cursorInfo;
+    GetConsoleCursorInfo(hOutput, &cursorInfo);
+    cursorInfo.bVisible = state;
+    SetConsoleCursorInfo(hOutput, &cursorInfo);
+}
+
 void mm_kbdline(void) {
     int ch;
     switch (ch = mm_kbdin()) {
-        case 0:
+        case 0:     // Invalid chars
         case -1:
             break;
-        case 27:
+        case 27:    // ESC
+            message_t *dxconn = msg_create();
+            msg_type(&dxconn, MTYPE_DXCONNECT);
+            msg_setflag(&dxconn, MFLAG_BROADCAST);
+            msg_setth(&dxconn, get_current_thread());
+            sck_sendmsg(dxconn);
+
+            mm_curvis(TRUE);
             exit(0);
             break;
-        case '\r':
+        case '\r':  // Enter
             if (wcs_linebuf[0] == 0)    // Dont send empty message
                 break;
 
+            // File transfer
             if (!wcscmp(wcs_linebuf, L"/send")) {
                 wchar_t *sfn = OpenFileDialog();
         
@@ -59,6 +74,8 @@ void mm_kbdline(void) {
                 free(sfn);
                 goto clear_then_exit_switch;
             }
+            
+            // Change thread
             if (!wcsncmp(wcs_linebuf, L"/thread+", 8)) {
                 set_current_thread( wcstou32(wcs_linebuf + 8) );
                 mm_toast(L"Connected to thread %u", get_current_thread());
@@ -66,22 +83,35 @@ void mm_kbdline(void) {
                 goto clear_then_exit_switch;
             }
 
+            // Send to private user
             wchar_t *priv = NULL;
             size_t privOffset = 0;
 
             if (!wcsncmp(wcs_linebuf, L"/priv+", 6)) {
                 privOffset = wcs_scan(wcs_linebuf + 6);
                 priv = wcs_copy_n(wcs_linebuf + 6, privOffset - 1);
+
+                privOffset += 6;
             }
 
-            //mm_toast(L"Privately sent to [%ls]", priv);
-            
-            message_t *sdmsg = msg_sendtext(wcs_linebuf + 6 + privOffset, priv);
+            message_t *sdmsg = msg_sendtext(wcs_linebuf + privOffset, priv);    // Create message
+
+            // If line CONTAINS $PING then set the flag
+            if (!wcsstr(wcs_linebuf, L"$PING") != 0) {
+                msg_setflag(&sdmsg, sdmsg->uc_flags | MFLAG_PING);
+            }
+
+            // If line starts with /broad then broadcast the message
+            if (!wcsncmp(wcs_linebuf, L"/broad", 6)) {
+                msg_setflag(&sdmsg, sdmsg->uc_flags | MFLAG_BROADCAST);
+            }
+
+            // Add the message to queue
             mm_scroll(sdmsg);
 clear_then_exit_switch:
             mm_clearbuf();
             break;
-        case '\b':
+        case 127:   // Backspace
             if (lbuf_index)
                 wcs_linebuf[--lbuf_index] = 0;
             mm_clearscr();

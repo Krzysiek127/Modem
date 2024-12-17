@@ -17,7 +17,7 @@ typedef struct {
             wcs_body[MAX_BODY];
 
     uint32_t u32_argument;
-    uint32_t u32_checksum;
+    uint32_t u32_checksum;      /* this field HAS to be at the end so that crc32() call is easier [len(msg) - len(u32)] */
 } message_t;
 
 /* Low-level functions */
@@ -38,6 +38,9 @@ void msg_sendfile(wchar_t *path);
 uint32_t get_current_thread(void);
 void set_current_thread(uint32_t th);
 
+/* I need to have access to message_t so this declaration isn't in socket.h */
+void sck_sendmsg(message_t *msg);
+
 /* Message types */
 
 #define MTYPE_TEXT 0
@@ -55,5 +58,5 @@ void set_current_thread(uint32_t th);
 /* Message flags */
 
 #define MFLAG_BROADCAST     (1 << 0)
-#define MFLAG_NOCHKSUM      (1 << 1)
+#define MFLAG_PING          (1 << 1)
 #endif

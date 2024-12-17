@@ -19,6 +19,8 @@
 #include <winsock2.h>
 #include <windows.h>
 
+#include "crc.h"
+
 #define MMVER   0x10
 #define MAX_USERNAME    24
 #define MAX_BODY        80
@@ -39,7 +41,7 @@ uint32_t wcstou32(wchar_t *wcs);
 void mm_toast(const wchar_t *format, ...);
 wchar_t* wcs_copy_n(const wchar_t* source, size_t n);
 size_t wcs_scan(const wchar_t *src);
-
+void MessageBoxW_Format(const wchar_t *format, ...);
 #define TIRCAssert(expr, text)  \
 do {                            \
     if((expr)) {                \
