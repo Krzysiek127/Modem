@@ -1,7 +1,9 @@
 //////////////////////////////////////////////////////////////////////////////
 ////////////////////// CRC 32/64 calculator for x86-64 ///////////////////////
 //////////////////////////////////////////////////////////////////////////////
-#pragma once
+#ifndef H_CRC // at least include-guard it correctly man...
+#define H_CRC
+
 #include <stdint.h>
 #include <stddef.h>
 #ifdef __cplusplus
@@ -89,4 +91,4 @@ TINYCRC_INLINE uint64_t boost_crc64(const void* data, size_t nbytes, uint64_t st
 #endif
 
 
-
+#endif

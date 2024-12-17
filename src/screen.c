@@ -14,7 +14,7 @@ extern wchar_t wcs_current_user[MAX_USERNAME];
 #define VECTOR_LENGTH   10
 static message_t *msg_vector[VECTOR_LENGTH];
 
-static wchar_t wcs_linebuf[MAX_BODY];
+static wchar_t wcs_linebuf[MAX_BODY] = {0};
 static size_t lbuf_index = 0;
 
 static DWORD written;

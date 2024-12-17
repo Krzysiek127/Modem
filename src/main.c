@@ -1,47 +1,49 @@
 #include "screen.h"
 #include "message.h"
 
+#define fileExists(fileName) (_waccess((fileName), F_OK))
+
 // All-Project globals
 wchar_t wcs_current_user[MAX_USERNAME];
-FILE *fUserFile;
+
+// returns 0(false) on success
+static inline bool inspectUserFile(void) {
+    if (fileExists(L"username"))
+        return true;
+
+    FILE *fUserFile = fopen("username", "rb");
+
+    if (fUserFile == NULL)
+        TIRCriticalError(L"Username file could not be read");
+    
+    fseek(fUserFile, 0L, SEEK_END);
+    const size_t fSize = ftell(fUserFile);
+
+    if (fSize != MAX_USERNAME * sizeof(wchar_t))
+        TIRCriticalError(L"Invalid username stored! Delete the file");
+    
+    rewind(fUserFile);
+    fread(wcs_current_user, sizeof(wchar_t), MAX_USERNAME, fUserFile);
+    fclose(fUserFile);
+
+    return false;
+}
+
 
 int main(int argc, char **argv) {
-    if (access("username", F_OK) == 0) {
-        fUserFile = fopen("username", "rb");
-        
-        fseek(fUserFile, 0L, SEEK_END);
-        size_t fSize = ftell(fUserFile);
-        if (fSize != MAX_USERNAME * sizeof(wchar_t))
-            TIRCriticalError(L"Invalid username stored! Delete the file");
-        
-        rewind(fUserFile);
-        fread(wcs_current_user, sizeof(wchar_t), MAX_USERNAME, fUserFile);
-        fclose(fUserFile);
-    } else {
+    if (inspectUserFile()) {
         wprintf(L"No username file!\nNew username> ");
+
         if (fgetws(wcs_current_user, MAX_USERNAME, stdin) == NULL)
             TIRCriticalError(L"Invalid username");
         
-
-        BOOL removeRest = FALSE;
+        // remove ungraph-able chars (if there are any)
         for (wchar_t *wcsptr = wcs_current_user; *wcsptr; wcsptr++) {
-            switch (*wcsptr) {
-            case 0:
-            case L'\r':
-            case L' ':
-            case L'\n':
-            case L'\t':
-                /* From this point onwards remove every char */
-                *wcsptr = 0;
-                removeRest = TRUE;
-                break;
-            default:
-                if (removeRest || !iswprint(*wcsptr))
-                    *wcsptr = 0;
-                break;
-            }
+            if (!iswgraph(*wcsptr))
+                *wcsptr = '\0';
         }
-        fUserFile = fopen("username", "wb");
+
+        FILE *fUserFile = fopen("username", "wb");
         fwrite(wcs_current_user, sizeof(wchar_t), MAX_USERNAME, fUserFile);
         fclose(fUserFile);
     }
