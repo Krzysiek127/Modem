@@ -4,7 +4,7 @@ static SOCKET skMain, skBroad;
 
 const char ADDR[] = "127.0.0.1";
 
-static inline void sockInitUDP(const uint16_t port) {
+static inline void sock_initUDP(const uint16_t port) {
     TIRCAssert(
         (skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET,
         L"Failed to initialize UDP socket"
@@ -37,7 +37,7 @@ static inline void sockInitUDP(const uint16_t port) {
 }
 
 
-static inline void sockInitTCP(const uint16_t port) {
+static inline void sock_initTCP(const uint16_t port) {
     TIRCAssert(
         (skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET,
         L"Failed to initialize TCP socket"
@@ -59,7 +59,7 @@ static inline void sockInitTCP(const uint16_t port) {
 }
 
 
-void sockInit(void) {
+void sock_init(void) {
     WSADATA wsa;
 
     TIRCAssert(
@@ -67,18 +67,21 @@ void sockInit(void) {
         L"Failed to initialize Winsock 2.2"
     );
 
-    sockInitTCP(2005);
-    //sockInnitUDP(2005);
+    sock_initTCP(2005);
+    //sock_innitUDP(2005);
 }
 
 
-void sockSend(const void *data, const int size) {
+void sock_send(const void *data, const int size) {
 
     if (send(skMain, (const char*)data, size, 0) == SOCKET_ERROR)
         TIRCFormatError(WSAGetLastError());
 }
 
-bool sockRecieve(void *buff, const int size) {
+bool sock_recieve(void *buff, const int size) {
+
+    if (buff == NULL)
+        return false;
 
     return (recv(skMain, (char *)buff, size, 0) > 0);
 }

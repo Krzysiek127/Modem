@@ -1,6 +1,5 @@
 #include "include.h"
 
-
 void TIRCriticalError(const wchar_t *msg) {
     MessageBoxW(NULL, msg, PRG_NAME, MB_ICONERROR);
     WSACleanup();
@@ -58,4 +57,53 @@ size_t wcs_scan(const wchar_t *src) {
     size_t len = 0;
     while (!iswspace(src[len++]));
     return len;
+}
+
+
+// temporary (meaby)
+inline bool hexdump(const void *addr, const size_t size, uint8_t perLine)
+{
+    if (!addr || !perLine)
+        return true;
+
+    if (perLine < 4) 
+        perLine = 4;
+    else if (perLine > 64)
+        perLine = 64;
+
+    printf("addr: %p\n", addr);
+
+    unsigned char buff[perLine + 1];
+    size_t i;
+    for (i = 0; i < size; i++)
+    {
+        // Multiple of perLine means new or first line (with line offset).
+        if (!(i % perLine))
+        {
+            // Only print previous-line ASCII buffer for lines beyond first.
+            if (i) printf("  %s\n", buff);
+
+            // Output the offset of current line.
+            printf("%06x:", i);
+        }
+
+        // Now the hex code for the specific character.
+        printf(" %02x", ((unsigned char  *)addr)[i]);
+
+        // And buffer a printable ASCII character for later.
+        buff[i % perLine] = (isprint(((unsigned char  *)addr)[i]) ? ((unsigned char  *)addr)[i] : '.');
+        
+        buff[(i % perLine) + 1] = 0;
+    }
+
+    // Pad out last line if not exactly perLine characters.
+    while ((i % perLine) != 0)
+    {
+        printf("   ");
+        i++;
+    }
+
+    // And print the final ASCII buffer.
+    printf("  %s\n", buff);
+    return false;
 }

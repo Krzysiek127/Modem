@@ -8,17 +8,19 @@
 typedef uint8_t msgType_t;
 
 typedef struct {
-    uint8_t   mmver;          // Protocol version should always be set to <<MMVER>>
-    time_t    tm_timestamp;
-    msgType_t uc_type;        // No enum, we should try to minimize bandwith
+    uint8_t   mmver;          // Protocol version (should always be set to <<MMVER>>)
+    time_t    tm_timestamp;   // time when message was CREATED!
+    msgType_t uc_type;        // type of the message (what it holds)
     uint8_t   uc_flags;
 
     uint32_t u32_thread;    // Changed channels to threads (sounds cooler)
 
-    wchar_t wcs_username[MAX_USERNAME],
-            wcs_address[MAX_USERNAME],  // When NULL it means '*'
-            wcs_body[MAX_BODY];
-
+    struct {
+        wchar_t wcs_username[MAX_USERNAME];
+        wchar_t wcs_address[MAX_USERNAME];  // When NULL it means '*'
+        wchar_t wcs_body[MAX_BODY];
+    } contents;
+    
     uint32_t u32_argument;
     uint32_t u32_checksum;      /* this field HAS to be at the end so that crc32() call is easier [len(msg) - len(u32)] */
 } message_t;
@@ -27,24 +29,40 @@ typedef struct {
 //                                                         V
 /* Low-level functions */
 message_t *msg_create(void);
-message_t *msg_type(message_t **msgptr,   msgType_t type);
-message_t *msg_body(message_t **msgptr,   wchar_t *body);
-message_t *msg_uarg(message_t **msgptr,   uint32_t arg);
-message_t *msg_setth(message_t **msgptr,  uint32_t thread);
-message_t *msg_setflag(message_t **msgptr,uint8_t flags);
+message_t *msg_type(message_t **msgptr,     msgType_t type);
+message_t *msg_body(message_t **msgptr,     wchar_t *body);
+message_t *msg_uarg(message_t **msgptr,     uint32_t arg);
+message_t *msg_setFlags(message_t **msgptr, uint8_t flags);
+message_t *msg_setThread(message_t **msgptr,uint32_t thread);
 
+// initializes and returns allocated message with specified params
+message_t *msg_create2(
+    const msgType_t type,
+    const uint32_t thread,
+    const uint32_t arg,
+    const uint8_t flags
+);
+
+// sets internal contents of the message (including username)
+void msg_setContent(
+    message_t *restrict msg,
+    const wchar_t *addr,
+    const wchar_t *body
+);
 
 /* High-level functions */
-message_t *msg_sendtext(wchar_t *message, wchar_t *address);
+message_t *msg_sendText(wchar_t *message, wchar_t *address);
 void msg_free(message_t *msg);
-void msg_sendfile(wchar_t *path);
+void msg_sendFile(wchar_t *path);
 
-uint32_t get_current_thread(void);
-void set_current_thread(uint32_t th);
+uint32_t getCurrentThread(void);
+void setCurrentThread(uint32_t th);
 
 
-void sendMSG(message_t *msg);
-message_t *recvMSG(void);
+// socket interaction functions
+
+void msg_send(message_t *msg);
+message_t *msg_recieve(void);
 
 
 /* Message types */

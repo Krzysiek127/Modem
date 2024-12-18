@@ -4,13 +4,16 @@
 #include "message.h"
 #include "dlgbox.h"
 
-void mm_scrint(void);
+// wtf does 'mm' mean???
+
+void mm_screenInit(void);
+void mm_screenClear(void);
+void mm_screenFlush(void);
+
 void mm_scroll(message_t *new);
-void mm_scrflush(void);
-int mm_kbdin(void);
-void mm_kbdline(void);
-void mm_clearscr(void);
-void mm_printlbuf(void);
-void mm_curvis(WINBOOL state);
+int mm_kbdIn(void);
+void mm_kbdLine(void);
+void mm_printLbuf(void);
+void mm_cursorVis(bool state);
 
 #endif

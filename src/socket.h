@@ -4,11 +4,11 @@
 #include "include.h"
 
 // initialize tcp and upd socket connections
-void sockInit(void);
+void sock_init(void);
 
-void sockSend(const void *data, const int size);
+void sock_send(const void *data, const int size);
 
-// true if recv returns value greater than 0
-bool sockRecieve(void *buff, const int size);
+// returns true on success
+bool sock_recieve(void *buff, const int size);
 
 #endif

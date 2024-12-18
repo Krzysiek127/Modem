@@ -47,29 +47,29 @@ int main(void) {
         fclose(fUserFile);
     }
 
-    //wcscpy(wcs_current_user, L"Krzysiek");
-    sockInit();
-    mm_curvis(FALSE);
+    sock_init();
+    mm_cursorVis(false);
 
-    mm_scrint();
-    mm_clearscr();
+    mm_screenInit();
+    mm_screenClear();
 
     message_t *conn = msg_create();
     msg_type(&conn, MSG_CONNECT);
-    msg_setflag(&conn, MFLAG_BROADCAST);
-    msg_setth(&conn, get_current_thread());
-    sendMSG(conn);
+    msg_setFlags(&conn, MFLAG_BROADCAST);
+    msg_setThread(&conn, getCurrentThread());
+
+    msg_send(conn);
 
     while (1) {
-        mm_kbdline();
-        mm_printlbuf();
-        message_t *recv = recvMSG();
+        mm_kbdLine();
+        mm_printLbuf();
+        message_t *recv = msg_recieve();
         if (recv != NULL) {
-            mm_clearscr();
+            mm_screenClear();
             mm_scroll(recv);
         }
         
-        mm_scrflush();
+        mm_screenFlush();
     }
     return 0;
 }

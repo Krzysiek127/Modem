@@ -35,6 +35,13 @@
 #define TCP_SLEEP   0
 
 
+/*
+    FUNCTION NAMING 101 
+    pref_name..()
+    pref - prefix, describes general operation type, all lowercase.
+    name - actual function name in camelCase.
+*/
+
 uint32_t wcstou32(const wchar_t *wcs);
 void mm_toast(const wchar_t *format, ...);
 wchar_t* wcs_copy_n(const wchar_t* source, const size_t n);
