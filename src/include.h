@@ -42,8 +42,10 @@
     name - actual function name in camelCase.
 */
 
+// formatted toast print
+void mm_toastf(const wchar_t *format, ...);
+
 uint32_t wcstou32(const wchar_t *wcs);
-void mm_toast(const wchar_t *format, ...);
 wchar_t* wcs_copy_n(const wchar_t* source, const size_t n);
 size_t wcs_scan(const wchar_t *src);
 void MessageBoxW_Format(const wchar_t *format, ...);
@@ -53,9 +55,9 @@ void MessageBoxW_Format(const wchar_t *format, ...);
 void TIRCriticalError(const wchar_t *text);
 void TIRCFormatError(int lasterror);
 
-#define TIRCAssert(expr, text)  \
+#define TIRCAssert(condition, text)  \
 do {                            \
-    if((expr)) {                \
+    if((condition)) {                \
         TIRCriticalError(text); \
     }                           \
 } while (0)

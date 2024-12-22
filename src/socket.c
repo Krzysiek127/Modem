@@ -20,20 +20,22 @@ static inline void sock_initUDP(const uint16_t port) {
         L"Failed to bind UDP port"
     );
 
+    /* Set timeout on UDP socket */
+    uint8_t timeout = UDP_TIMEOUT;
     bool broadcast = true;
+
     TIRCAssert(
-        setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) == SOCKET_ERROR,
+        setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) < 0,
         L"Failed to set broadcast option on UDP socket"
     );
-
-    /* Set timeout on UDP socket */
-    int timeout = UDP_TIMEOUT;
-
-    if (setsockopt(skBroad, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
-        TIRCriticalError(L"Failed to set receive timeout");
-
-    if (setsockopt(skBroad, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
-        TIRCriticalError(L"Failed to set send timeout");
+    TIRCAssert(
+        setsockopt(skBroad, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0,
+        L"Failed to set send timeout"
+    );
+    TIRCAssert(
+        setsockopt(skBroad, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0,
+        L"Failed to set receive timeout"
+    );
 }
 
 

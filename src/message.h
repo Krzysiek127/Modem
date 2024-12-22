@@ -75,7 +75,7 @@ enum {
     MSG_DATA_ERROR,
 
     MSG_CONNECT,
-    MSG_DXCONNECT, // you mean disconnect ??
+    MSG_DISCONNECT,
 
     MSG_SHUTDOWN
 };

@@ -50,7 +50,7 @@ message_t *msg_create(void) {
     return tmp;
 }
 
-message_t *msg_type(message_t **msgptr, uint8_t type) {
+message_t *msg_type(message_t **msgptr, msgType_t type) {
     (*msgptr)->uc_type = type;
     return *msgptr;
 }
@@ -202,14 +202,14 @@ static message_t *msg_filter(message_t **msg) {
     const wchar_t *wcs_addr = (*msg)->contents.wcs_address;
 
     if ((*msg)->mmver != MMVER) {
-        mm_toast(L"Message with invalid protocol version received");
+        mm_toastf(L"Message with invalid protocol version received");
         msg_free(*msg);
         return NULL;
     }
 
     // CRC32 check
     if (crc32(*msg, sizeof(message_t) - sizeof(uint32_t)) != (*msg)->u32_checksum) {
-        mm_toast(L"Message with invalid CRC32 received!");
+        mm_toastf(L"Message with invalid CRC32 received!");
         msg_free(*msg);
         return NULL;
     }
@@ -258,7 +258,7 @@ static message_t *msg_filter(message_t **msg) {
             );
 
             if (hFileRecv == INVALID_HANDLE_VALUE)
-                mm_toast(L"The file cannot be downloaded");
+                mm_toastf(L"The file cannot be downloaded");
             break;
         
         case MSG_DATA:
@@ -277,11 +277,11 @@ static message_t *msg_filter(message_t **msg) {
             break;
         
         case MSG_CONNECT:
-            mm_toast(L"%ls joined!", (*msg)->contents.wcs_username);
+            mm_toastf(L"%ls joined!", (*msg)->contents.wcs_username);
             break;
 
-        case MSG_DXCONNECT:
-            mm_toast(L"%ls left!", (*msg)->contents.wcs_username);
+        case MSG_DISCONNECT:
+            mm_toastf(L"%ls left!", (*msg)->contents.wcs_username);
             break;
         
         case MSG_SHUTDOWN:

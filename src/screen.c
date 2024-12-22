@@ -23,7 +23,7 @@ static void mm_msgFormat(message_t *msg);
 static void mm_clearBuffer(void);
 
 
-void mm_toast(const wchar_t *format, ...) {
+void mm_toastf(const wchar_t *format, ...) {
     va_list argptr;
 
     va_start(argptr, format);
@@ -53,9 +53,10 @@ void mm_kbdLine(void) {
     switch (ch) {
         case 0:     // Invalid chars
         case -1: break;
+        
         case 27:    // ESC
             message_t *dxconn = msg_create();
-            msg_type(&dxconn, MSG_DXCONNECT);
+            msg_type(&dxconn, MSG_DISCONNECT);
             msg_setFlags(&dxconn, MFLAG_BROADCAST);
             msg_setThread(&dxconn, getCurrentThread());
 
@@ -81,7 +82,7 @@ void mm_kbdLine(void) {
             // Change thread
             if (!wcsncmp(wcs_linebuf, L"/thread+", 8)) {
                 setCurrentThread( wcstou32(wcs_linebuf + 8) );
-                mm_toast(L"Connected to thread %u", getCurrentThread());
+                mm_toastf(L"Connected to thread %u", getCurrentThread());
                 
                 goto clear_then_exit_switch;
             }
@@ -158,8 +159,21 @@ void mm_screenInit(void) {
 }
 
 void mm_screenClear(void) {
-    FillConsoleOutputCharacter(hOutput, ' ', csbi.dwSize.X * csbi.dwSize.Y, (COORD){0, 0}, &written);
-    FillConsoleOutputAttribute(hOutput, csbi.wAttributes, csbi.dwSize.X * csbi.dwSize.Y, (COORD){0, 0}, &written);
+    FillConsoleOutputCharacter(
+        hOutput, 
+        ' ', 
+        csbi.dwSize.X * csbi.dwSize.Y, 
+        (COORD){0, 0}, 
+        &written
+    );
+
+    FillConsoleOutputAttribute(
+        hOutput, 
+        csbi.wAttributes, 
+        csbi.dwSize.X * csbi.dwSize.Y, 
+        (COORD){0, 0}, 
+        &written
+    );
 
     //FillConsoleOutputAttribute(hOutput, BACKGROUND_INTENSITY, s.dwSize.X, (COORD){0, 1}, &written);
 
@@ -172,7 +186,6 @@ void mm_screenFlush(void) {
         mm_msgFormat(msg_vector[i]);
     }
 }
-
 
 
 void mm_scroll(message_t *new) {
