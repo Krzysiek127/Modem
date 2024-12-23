@@ -19,6 +19,10 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "/p")) {
             advert.u16_port = atoi(argv[++i]);
         }
+        if (!strcmp(argv[i], "/t")) {
+            dInterval = atoi(argv[++i]);
+            dInterval = dInterval < 100 ? 100 : dInterval;  // Anything below 100ms could be too unstable/network intensive
+        }
         if (!strcmp(argv[i], "/i")) {
             ip_addr = argv[++i];
         }

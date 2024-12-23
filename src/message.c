@@ -70,7 +70,7 @@ void msg_free(message_t *msg) {
 
 
 /* High level functions */
-message_t *msg_sendtext(wchar_t *message, wchar_t *address) {
+message_t *msg_maketext(wchar_t *message, wchar_t *address) {
     message_t *msg = msg_create();
     msg_type(&msg, MTYPE_TEXT);
     msg_body(&msg, message);
@@ -79,9 +79,6 @@ message_t *msg_sendtext(wchar_t *message, wchar_t *address) {
         msg_addr(&msg, address);
     
     msg_setth(&msg, u32_thread);
-
-    sck_sendmsg(msg);
-    
     return msg;
 }
 
@@ -185,7 +182,7 @@ static message_t *msg_filter(message_t **msg) {
     if (wcs_addr[0] != L'\0' && wcscmp(wcs_addr, wcs_current_user) != 0) {
         msg_free(*msg);
         return NULL;
-    }   
+    }
     
     // Check if message has a flag telling it not to check thread TODO: Replace goto with if
     if ((*msg)->uc_flags & MFLAG_BROADCAST)
@@ -200,7 +197,7 @@ static message_t *msg_filter(message_t **msg) {
 skip_thread_check:
     // PING flag
     if ((*msg)->uc_flags & MFLAG_PING) {
-        MessageBeep(MB_ICONASTERISK);
+        MessageBeep(MB_OK);
         msg_free(*msg);
         return NULL;
     }

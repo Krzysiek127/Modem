@@ -25,6 +25,8 @@ static void mm_clearbuf(void);
 
 
 void mm_toast(const wchar_t *format, ...) {
+    wmemset(wcs_toastbuf, 0, MAX_TOAST);
+
     va_list argptr;
 
     va_start(argptr, format);
@@ -125,17 +127,24 @@ void mm_kbdline(void) {
                 privOffset += 6;
             }
 
-            message_t *sdmsg = msg_sendtext(wcs_linebuf + privOffset, priv);    // Create message
-
-            // If line CONTAINS $PING then set the flag
-            if (!wcsstr(wcs_linebuf, L"!PING") != 0) {
-                msg_setflag(&sdmsg, sdmsg->uc_flags | MFLAG_PING);
+            uint8_t uc_flag;
+            if (!wcsncmp(wcs_linebuf, L"!!", 2)) {
+                uc_flag = MFLAG_PING;
+                privOffset += 2;
+            }
+            if (!wcsncmp(wcs_linebuf, L"##", 2)) {
+                uc_flag = MFLAG_BROADCAST;
+                privOffset += 2;
+            }
+            if (!wcsncmp(wcs_linebuf, L"#!", 2)) {
+                uc_flag = MFLAG_PING | MFLAG_BROADCAST;
+                privOffset += 2;
             }
 
-            // If line starts with /broad then broadcast the message
-            if (!wcsncmp(wcs_linebuf, L"/broad", 6)) {
-                msg_setflag(&sdmsg, sdmsg->uc_flags | MFLAG_BROADCAST);
-            }
+
+            message_t *sdmsg = msg_maketext(wcs_linebuf + privOffset, priv);    // Create message
+            msg_setflag(&sdmsg, uc_flag);
+            sck_sendmsg(sdmsg);
 
             // Add the message to queue
             mm_scroll(sdmsg);
@@ -148,7 +157,7 @@ clear_then_exit_switch:
             mm_clearscr();
             break;
         default:
-            if (lbuf_index < MAX_BODY && isprint(ch))
+            if (lbuf_index < MAX_BODY && iswprint(ch))  // Oh my fockin god isprint != iswprint
                 wcs_linebuf[lbuf_index++] = (wchar_t)ch;
             break;
     }

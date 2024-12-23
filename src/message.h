@@ -30,7 +30,7 @@ message_t *msg_setflag(message_t **msgptr, uint8_t flags);
 
 
 /* High-level functions */
-message_t *msg_sendtext(wchar_t *message, wchar_t *address);
+message_t *msg_maketext(wchar_t *message, wchar_t *address);
 void msg_free(message_t *msg);
 message_t *msg_recv(void);
 void msg_sendfile(wchar_t *path);
