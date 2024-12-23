@@ -14,7 +14,7 @@ extern wchar_t wcs_current_user[MAX_USERNAME];
 #define VECTOR_LENGTH   10
 static message_t *msg_vector[VECTOR_LENGTH];
 
-static wchar_t wcs_linebuf[MAX_BODY] = {0};
+static wchar_t wcs_linebuf[MAX_BODY];
 static size_t lbuf_index = 0;
 
 static DWORD written;
@@ -48,9 +48,38 @@ void mm_curvis(WINBOOL state) {     // Cursor visiblity not Kurvinox XDDD
     SetConsoleCursorInfo(hOutput, &cursorInfo);
 }
 
+
+wchar_t *mm_kbdraw(int max) {
+    wchar_t *wcs_str = calloc(max, sizeof(wchar_t));
+
+    int ch, i = 0;
+    while (i < MAX_USERNAME - 1) {
+        switch (ch = mm_kbdin(TRUE)) {
+        case -1:
+        case 0:
+            continue;   // Restart the loop
+        case 27:
+            exit(0);
+        case '\r':
+            return wcs_str;
+        case 127:
+            if (i) {
+                wcs_str[--i] = 0;
+                printf("\b \b");
+            }
+            break;
+        default:
+            wcs_str[i++] = (wchar_t) ch;
+            WriteConsoleW(hOutput, (wchar_t*)&ch, 1, &written, NULL);
+            break;
+        }
+    }
+    return wcs_str;
+}
+
 void mm_kbdline(void) {
     int ch;
-    switch (ch = mm_kbdin()) {
+    switch (ch = mm_kbdin(FALSE)) {
         case 0:     // Invalid chars
         case -1:
             break;
@@ -138,11 +167,14 @@ void mm_scrint(void) {
     hInput = GetStdHandle(STD_INPUT_HANDLE);
     hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
-    TIRCAssert(hInput == NULL, L"Failed to initialize STDIN handle!");
-    TIRCAssert(hOutput == NULL, L"Failed to initialize STDOUT handle!");
+    if (hInput == NULL)
+        TIRCriticalError(L"Failed to initialize STDIN handle!");
+    
+    if (hOutput == NULL)
+        TIRCriticalError(L"Failed to initialize STDOUT handle!");
 
-    //SetConsoleOutputCP(CP_UTF8);
     setlocale(LC_ALL, ".UTF8");
+    //SetConsoleOutputCP(CP_UTF8);
     SetConsoleMode(
         hInput, 
         ((~ENABLE_LINE_INPUT) & ~ENABLE_ECHO_INPUT) | ENABLE_PROCESSED_INPUT
@@ -175,12 +207,14 @@ void mm_scrflush(void) {
 }
 
 
-int mm_kbdin(void) {
-    TIRCAssert(hInput == NULL, L"Uninitialized STDIN handle!");
+int mm_kbdin(BOOL bWait) {
+    if (hInput == NULL)
+        TIRCriticalError(L"Uninitialized STDIN handle!");
+    
     INPUT_RECORD IR;
     DWORD EVENTSREAD;
 
-    if (PeekConsoleInputW(hInput, &IR, 1, &EVENTSREAD) && EVENTSREAD) {
+    if ((PeekConsoleInputW(hInput, &IR, 1, &EVENTSREAD) && EVENTSREAD) || bWait) {
         ReadConsoleInputW(hInput, &IR, 1, &EVENTSREAD);
         return (IR.EventType == KEY_EVENT && IR.Event.KeyEvent.bKeyDown) ? IR.Event.KeyEvent.uChar.UnicodeChar : -1;
     }
@@ -203,7 +237,7 @@ static void mm_msgformat(message_t *msg) {
     printf("%u+", msg->u32_thread);
 
     SetConsoleTextAttribute(hOutput, FOREGROUND_GREEN);
-    WriteConsoleW(hOutput, msg->wcs_username, MAX_USERNAME, &written, NULL);   // I'm not sure MAX_USERNAME is correct here
+    WriteConsoleW(hOutput, msg->wcs_username, wcslen(msg->wcs_username), &written, NULL);
 
 
     SetConsoleTextAttribute(hOutput, FOREGROUND_INTENSITY);

@@ -13,8 +13,16 @@ static message_t *msg_filter(message_t **msg);
 void sck_sendmsg(message_t *msg) {
     msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude chksum itself
 
-    if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR)
-        TIRCFormatError( WSAGetLastError() );
+    if (send(*sck_getmainsock(), (const char*)msg, sizeof(message_t), 0) == SOCKET_ERROR) {
+        int err = WSAGetLastError();
+        switch (err) {
+            case WSAEWOULDBLOCK:
+                Sleep(TCP_SLEEP);
+                return;
+            default:
+                TIRCFormatError(err);
+        }
+    }
 }
 
 message_t *msg_create(void) {
@@ -88,7 +96,6 @@ message_t *msg_recv(void) {
     /* Something happened */
     int err = WSAGetLastError();
     if (err == WSAEWOULDBLOCK) {
-        Sleep(TCP_SLEEP);
         return NULL;
     }
 

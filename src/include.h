@@ -24,34 +24,25 @@
 #define MMVER   0x10
 #define MAX_USERNAME    24
 #define MAX_BODY        80
-#define MAX_MOTD        160
 #define MAX_TOAST       120
+
+#define DEFAULT_PORT    2005
 
 #define FOREGROUND_DEFAULT  (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
 #define PRG_NAME    (L"Modem")
 #define PRG_VER     (L"0.1")
 
 #define UDP_TIMEOUT 50
-#define TCP_SLEEP   0
-
-
-uint32_t wcstou32(const wchar_t *wcs);
-void mm_toast(const wchar_t *format, ...);
-wchar_t* wcs_copy_n(const wchar_t* source, const size_t n);
-size_t wcs_scan(const wchar_t *src);
-void MessageBoxW_Format(const wchar_t *format, ...);
-
-// Error reporting
+#define TCP_SLEEP   80
 
 void TIRCriticalError(const wchar_t *text);
 void TIRCFormatError(int lasterror);
 
-#define TIRCAssert(expr, text)  \
-do {                            \
-    if((expr)) {                \
-        TIRCriticalError(text); \
-    }                           \
-} while (0)
+uint32_t wcstou32(wchar_t *wcs);
+void mm_toast(const wchar_t *format, ...);
+wchar_t* wcs_copy_n(const wchar_t* source, size_t n);
+size_t wcs_scan(const wchar_t *src);
+void MessageBoxW_Format(const wchar_t *format, ...);
 
 /*
     Generally UDP would be used for server discovery and advertisiment so it needs timeout (Server selection before connecting)

@@ -1,56 +1,65 @@
 #include "socket.h"
+#include "discovery.h"
 
-static SOCKET skMain, skBroad;
-
-const char ADDR[] = "127.0.0.1";
-USHORT TPORT = 2005;
-USHORT UPORT = 2005;
-
+static SOCKET skMain;
+static struct sockaddr_in tcp;
+static WSADATA wsa;
 
 void sck_init(void) {
-    WSADATA wsa;
+    if (WSAStartup( MAKEWORD(2, 2), &wsa ) != 0)
+        TIRCriticalError(L"Failed to initialize Winsock 2.2");
+}
 
-    TIRCAssert(WSAStartup( MAKEWORD(2, 2), &wsa ) != 0, L"Failed to initialize Winsock 2.2");
-    TIRCAssert((skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET, L"Failed to initialize TCP socket");
-    TIRCAssert((skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET, L"Failed to initialize UDP socket");
+void sck_initUDP(u_long UPORT) {
+    struct sockaddr_in si_this, si_other;
+    int si_otherlen = sizeof(si_other);
+    SOCKET broadcast;
+
+    if ((broadcast = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
+        TIRCriticalError(L"Invalid UDP socket!");
     
-    struct sockaddr_in tcp, udp;
+    si_this.sin_family = AF_INET;
+    si_this.sin_addr.s_addr = INADDR_ANY;
+    si_this.sin_port = htons(UPORT);
+
+    if ((bind(broadcast, (struct sockaddr*)&si_this, sizeof(si_this)) == SOCKET_ERROR)) {
+        TIRCriticalError(L"Cannot bind UDP socket");
+    }
+
+recv_advert:
+    advert_t advert;
+    int recl = recvfrom(broadcast, (char*)&advert, sizeof(advert_t), 0, (struct sockaddr*)&si_other, &si_otherlen);
+    if (recl != sizeof(advert_t)) {
+        wprintf(L"Received datagram is of invalid length\n");
+        goto recv_advert;
+    }
+    
+    if ( advert.u32_crc != crc32(&advert, sizeof(advert_t) - sizeof(uint32_t)) ) {
+        wprintf(L"Invalid checksum\n");
+        goto recv_advert;
+    }
+    closesocket(broadcast);
+    sck_initTCP(advert.u32_addr, advert.u16_port);
+    mm_toast(advert.wcs_welcome);
+}
+
+
+void sck_initTCP(u_long ADDR, uint16_t PORT) {
+    if ((skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+        TIRCriticalError(L"Failed to initialize TCP socket");
+    }
+
     tcp.sin_family = AF_INET;
-    tcp.sin_addr.s_addr = inet_addr(ADDR);
-    tcp.sin_port = htons(TPORT);
+    tcp.sin_addr.s_addr = ADDR;
+    tcp.sin_port = htons(PORT);
 
-    udp.sin_family = AF_INET;
-    udp.sin_addr.s_addr = INADDR_BROADCAST;
-    udp.sin_port = htons(UPORT);
-
-    // not sure if this can be changed to normal bool
-    BOOL broadcast = TRUE;
-    TIRCAssert(
-        setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) == SOCKET_ERROR,
-        L"Failed to set broadcast option on UDP socket"
-    );
-
-    TIRCAssert( connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) == SOCKET_ERROR, L"Failed to establish a connection to host over TCP" );
-    //TIRCAssert( bind(skBroad, (struct sockaddr*)&udp, sizeof(udp)) != SOCKET_ERROR, L"Failed to bind UDP port" );
-
-    /* Set non-blocking mode on TCP socket */
+    if (connect(skMain, (SOCKADDR*)&tcp, sizeof(tcp)) == SOCKET_ERROR) {
+        TIRCriticalError(L"Failed to establish a connection to host over TCP");
+    }
     u_long mode = 1;
     ioctlsocket(skMain, FIONBIO, &mode);
-
-    /* Set timeout on UDP socket */
-    int timeout = UDP_TIMEOUT;
-    if (setsockopt(skBroad, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
-        TIRCriticalError(L"Failed to set receive timeout");
-    }
-    if (setsockopt(skBroad, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
-        TIRCriticalError(L"Failed to set send timeout");
-    }
 }
 
 SOCKET *sck_getmainsock(void) {
     return &skMain;
-}
-
-SOCKET *sck_getbroadsock(void) {
-    return &skBroad;
 }

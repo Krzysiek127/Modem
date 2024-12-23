@@ -34,7 +34,7 @@ void TIRCFormatError(int lasterror) {
     TIRCriticalError(s);
 }
 
-uint32_t wcstou32(const wchar_t *wcs) {
+uint32_t wcstou32(wchar_t *wcs) {
     uint32_t i = 0, ret = 0;
 
     while (iswdigit(wcs[i]) && wcs[i] != 0) {
@@ -44,7 +44,7 @@ uint32_t wcstou32(const wchar_t *wcs) {
     return ret;
 }
 
-wchar_t* wcs_copy_n(const wchar_t* source, const size_t n) {
+wchar_t* wcs_copy_n(const wchar_t* source, size_t n) {
     if (!source)
         return NULL;
         
