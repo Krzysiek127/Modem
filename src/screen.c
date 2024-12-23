@@ -22,6 +22,13 @@ static DWORD written;
 static void mm_msgFormat(message_t *msg);
 static void mm_clearBuffer(void);
 
+static inline void mm_cursorVis(bool state) {
+    CONSOLE_CURSOR_INFO cursorInfo;
+    GetConsoleCursorInfo(hOutput, &cursorInfo);
+    cursorInfo.bVisible = state;
+    SetConsoleCursorInfo(hOutput, &cursorInfo);
+}
+
 
 void mm_toastf(const wchar_t *format, ...) {
     va_list argptr;
@@ -40,33 +47,27 @@ void mm_vectorClear(void) {
     }
 }
 
-void mm_cursorVis(bool state) { // Cursor visiblity not Kurvinox XDDD
-    CONSOLE_CURSOR_INFO cursorInfo;
-    GetConsoleCursorInfo(hOutput, &cursorInfo);
-    cursorInfo.bVisible = state;
-    SetConsoleCursorInfo(hOutput, &cursorInfo);
-}
+
+static wchar_t mm_kbdIn(void);
 
 void mm_kbdLine(void) {
-    const int ch = mm_kbdIn();
+    const wchar_t ch = mm_kbdIn();
 
     switch (ch) {
-        case 0:     // Invalid chars
-        case -1: break;
+        // Invalid chars
+        case 0: break;
         
         case 27:    // ESC
-            message_t *dxconn = msg_create();
-            msg_type(&dxconn, MSG_DISCONNECT);
-            msg_setFlags(&dxconn, MFLAG_BROADCAST);
-            msg_setThread(&dxconn, getCurrentThread());
+            message_t *dxconn = msg_create(MSG_DISCONNECT, getCurrentThread(), 0, MFLAG_BROADCAST);
 
             msg_send(dxconn);
+            msg_free(dxconn);
 
             mm_cursorVis(true);
             exit(0);
             break;
 
-        case '\r':  // Enter
+        case L'\r':  // Enter
             if (wcs_linebuf[0] == 0)    // Dont send empty message
                 break;
 
@@ -74,9 +75,11 @@ void mm_kbdLine(void) {
             if (!wcscmp(wcs_linebuf, L"/send")) {
                 wchar_t *sfn = OpenFileDialog();
         
-                msg_sendFile( sfn );
+                msg_sendFile(sfn);
                 free(sfn);
-                goto clear_then_exit_switch;
+
+                mm_clearBuffer();
+                break;
             }
             
             // Change thread
@@ -84,7 +87,8 @@ void mm_kbdLine(void) {
                 setCurrentThread( wcstou32(wcs_linebuf + 8) );
                 mm_toastf(L"Connected to thread %u", getCurrentThread());
                 
-                goto clear_then_exit_switch;
+                mm_clearBuffer();
+                break;
             }
 
             // Send to private user
@@ -97,23 +101,21 @@ void mm_kbdLine(void) {
 
                 privOffset += 6;
             }
-
-            message_t *sdmsg = msg_sendText(wcs_linebuf + privOffset, priv);    // Create message
+            
+            message_t *sdmsg = msg_create(MSG_TEXT, getCurrentThread(), 0, 0);
+            msg_setContent(sdmsg, priv, wcs_linebuf + privOffset);
+            msg_send(sdmsg);
 
             // If line CONTAINS $PING then set the flag
-            if (!wcsstr(wcs_linebuf, L"!PING") != 0) {
-                msg_setFlags(&sdmsg, sdmsg->uc_flags | MFLAG_PING);
-            }
+            if (!wcsstr(wcs_linebuf, L"!PING") != 0)
+                sdmsg->uc_flags |= MFLAG_PING;
 
             // If line starts with /broad then broadcast the message
-            if (!wcsncmp(wcs_linebuf, L"/broad", 6)) {
-                msg_setFlags(&sdmsg, sdmsg->uc_flags | MFLAG_BROADCAST);
-            }
+            if (!wcsncmp(wcs_linebuf, L"/broad", 6))
+                sdmsg->uc_flags |= MFLAG_BROADCAST;
 
             // Add the message to queue
             mm_scroll(sdmsg);
-
-clear_then_exit_switch:
             mm_clearBuffer();
             break;
 
@@ -124,12 +126,12 @@ clear_then_exit_switch:
             break;
 
         default:
-            if (lbuf_index < MAX_BODY && isprint(ch))
-                wcs_linebuf[lbuf_index++] = (wchar_t)ch;
+            if (lbuf_index < MAX_BODY && iswprint(ch))
+                wcs_linebuf[lbuf_index++] = ch;
             break;
     }
 }
-void mm_printLbuf(void) {
+void mm_printLineBuff(void) {
     SetConsoleCursorPosition(hOutput, (COORD) {0, 0});
     wprintf(L"%ls@%u> ", wcs_current_user, getCurrentThread());
     WriteConsoleW(hOutput, wcs_linebuf, lbuf_index, &written, NULL);
@@ -156,6 +158,7 @@ void mm_screenInit(void) {
     );
 
     GetConsoleScreenBufferInfo(hOutput, &csbi);
+    mm_cursorVis(false);
 }
 
 void mm_screenClear(void) {
@@ -196,7 +199,9 @@ void mm_scroll(message_t *new) {
     msg_vector[VECTOR_LENGTH - 1] = new;
 }
 
-int mm_kbdIn(void) {
+/* Static functions */
+
+static wchar_t mm_kbdIn(void) {
     TIRCAssert(hInput == NULL, L"Uninitialized STDIN handle!");
     INPUT_RECORD IR;
     DWORD EVENTSREAD;
@@ -205,10 +210,8 @@ int mm_kbdIn(void) {
         ReadConsoleInputW(hInput, &IR, 1, &EVENTSREAD);
         return (IR.EventType == KEY_EVENT && IR.Event.KeyEvent.bKeyDown) ? IR.Event.KeyEvent.uChar.UnicodeChar : -1;
     }
-    return -1;
+    return 0;
 }
-
-/* Static functions */
 
 static void mm_msgFormat(message_t *msg) {
     if (msg == NULL)

@@ -11,9 +11,7 @@ void mm_screenClear(void);
 void mm_screenFlush(void);
 
 void mm_scroll(message_t *new);
-int mm_kbdIn(void);
 void mm_kbdLine(void);
-void mm_printLbuf(void);
-void mm_cursorVis(bool state);
+void mm_printLineBuff(void);
 
 #endif

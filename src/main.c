@@ -54,21 +54,18 @@ int main(void) {
     }
 
     sock_init();
-    mm_cursorVis(false);
 
     mm_screenInit();
     mm_screenClear();
 
-    message_t *conn = msg_create();
-    msg_type(&conn, MSG_CONNECT);
-    msg_setFlags(&conn, MFLAG_BROADCAST);
-    msg_setThread(&conn, getCurrentThread());
-
+    message_t *conn = msg_create(MSG_CONNECT, getCurrentThread(), 0, MFLAG_BROADCAST);
     msg_send(conn);
+    msg_free(conn);
 
     while (1) {
         mm_kbdLine();
-        mm_printLbuf();
+        mm_printLineBuff();
+        
         message_t *recv = msg_recieve();
         if (recv != NULL) {
             mm_screenClear();

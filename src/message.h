@@ -25,18 +25,14 @@ typedef struct {
     uint32_t u32_checksum;      /* this field HAS to be at the end so that crc32() call is easier [len(msg) - len(u32)] */
 } message_t;
 
-// these will be generalized and refactored to shit later  |
-//                                                         V
+
 /* Low-level functions */
-message_t *msg_create(void);
-message_t *msg_type(message_t **msgptr,     msgType_t type);
-message_t *msg_body(message_t **msgptr,     wchar_t *body);
-message_t *msg_uarg(message_t **msgptr,     uint32_t arg);
-message_t *msg_setFlags(message_t **msgptr, uint8_t flags);
-message_t *msg_setThread(message_t **msgptr,uint32_t thread);
+
+// raw version of msg_create
+message_t *msg_init(void);
 
 // initializes and returns allocated message with specified params
-message_t *msg_create2(
+message_t *msg_create(
     const msgType_t type,
     const uint32_t thread,
     const uint32_t arg,
@@ -51,7 +47,7 @@ void msg_setContent(
 );
 
 /* High-level functions */
-message_t *msg_sendText(wchar_t *message, wchar_t *address);
+
 void msg_free(message_t *msg);
 void msg_sendFile(wchar_t *path);
 
