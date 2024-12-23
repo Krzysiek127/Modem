@@ -128,15 +128,15 @@ void mm_kbdline(void) {
             }
 
             uint8_t uc_flag;
-            if (!wcsncmp(wcs_linebuf, L"!!", 2)) {
+            if (!wcsncmp(wcs_linebuf + privOffset, L"!!", 2)) {     // That way they can be used privately
                 uc_flag = MFLAG_PING;
                 privOffset += 2;
             }
-            if (!wcsncmp(wcs_linebuf, L"##", 2)) {
+            if (!wcsncmp(wcs_linebuf + privOffset, L"##", 2)) {
                 uc_flag = MFLAG_BROADCAST;
                 privOffset += 2;
             }
-            if (!wcsncmp(wcs_linebuf, L"#!", 2)) {
+            if (!wcsncmp(wcs_linebuf + privOffset, L"#!", 2)) {
                 uc_flag = MFLAG_PING | MFLAG_BROADCAST;
                 privOffset += 2;
             }

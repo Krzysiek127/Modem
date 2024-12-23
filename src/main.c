@@ -80,7 +80,7 @@ username_register:
             return 0;
         }
     }
-    printf("Discovering Modem server [%hu@UDP], please wait...", broadcast_port);
+    printf("Discovering Modem server [%lu@UDP], please wait...", broadcast_port);
     sck_initUDP(broadcast_port);  // We didn't encounter `/f ip<:port>` so we need to await broadcasts
     end_argv_check:
     mm_curvis(FALSE);
