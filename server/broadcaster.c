@@ -15,9 +15,14 @@ int main(int argc, char **argv) {
 
     char *ip_addr = NULL;
     DWORD dInterval = 1000;
+    u_long BRDPORT = DEFAULT_PORT;
+
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "/p")) {
             advert.u16_port = atoi(argv[++i]);
+        }
+        if (!strcmp(argv[i], "/P")) {
+            BRDPORT = atoi(argv[++i]);
         }
         if (!strcmp(argv[i], "/t")) {
             dInterval = atoi(argv[++i]);
@@ -34,6 +39,13 @@ int main(int argc, char **argv) {
                     *p = 0;
             }
             printf("\n");
+        }
+
+        if (!strcmp(argv[i], "/h")) {
+            printf("Modem chat server broadcaster\nUsage: %s [/p port] [/t interval] [/i interface] [/m]\n\n\t/p port\t\tChange server port\n\t/P port\t\tChange broadcasting port\n\t/t\t\tChange broadcasting interval (in ms)\n\t/i ip_addr\tUse selected interface\n\t/m\t\tPrompt for welcome message\n\n", 
+                    strrchr(argv[0], '\\') + 1
+            );
+            return 0;
         }
     }
     WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -78,10 +90,10 @@ int main(int argc, char **argv) {
 
     int len = sizeof(struct sockaddr_in);
     Recv_addr.sin_family       = AF_INET;        
-    Recv_addr.sin_port         = htons(DEFAULT_PORT);   
+    Recv_addr.sin_port         = htons(BRDPORT);   
     Recv_addr.sin_addr.s_addr  = INADDR_BROADCAST;
 
-    printf("Broadcasting on %u! Now run 'ncat -l %u --broker' to start the actual server.\n\tInterface: %s\n\tServer port: %u\n\tWelcome: \"%ls\"\n\tInterval: %u ms\n\n", 
+    printf("Broadcasting on %u! Now run 'ncat -l %u --broker' to start the actual server.\nInfo:\n\tInterface: %s\n\tServer port: %u\n\tWelcome: \"%ls\"\n\tInterval: %u ms\n\n", 
         DEFAULT_PORT, advert.u16_port, inet_ntoa(*(struct in_addr*)&advert.u32_addr), advert.u16_port, advert.wcs_welcome, dInterval
     );
     while (1) {

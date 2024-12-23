@@ -23,11 +23,12 @@ int main(int argc, char **argv) {
         fclose(fUserFile);
     } else {
 username_register:
-        wprintf(L"No username file!\nNew username> ");
+        wprintf(L"New username> ");
         wchar_t *wcs_usrin = mm_kbdraw(MAX_USERNAME);
         wmemcpy(wcs_current_user, wcs_usrin, MAX_USERNAME);
         free(wcs_usrin);
 
+        printf("\n");
         BOOL removeRest = FALSE;
         for (wchar_t *wcsptr = wcs_current_user; *wcsptr; wcsptr++) {
             switch (*wcsptr) {
@@ -48,7 +49,7 @@ username_register:
         }
 
         if (*wcs_current_user == 0) {
-            MessageBoxW(NULL, L"Invalid username!", L"Name error", 0);
+            wprintf(L"Invalid username!\n");
             goto username_register;
         }
         

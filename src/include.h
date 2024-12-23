@@ -21,7 +21,7 @@
 
 #include "crc.h"
 
-#define MMVER   0x10
+#define MMVER   0x12
 #define MAX_USERNAME    24
 #define MAX_BODY        80
 #define MAX_TOAST       120

@@ -1,5 +1,5 @@
 CC=gcc 
-CFLAGS=-MMD -Wall -Wextra -Wpedantic -Wconversion # we will fear about being pedantic later
+CFLAGS=-MMD -Wall -Wextra -Wpedantic # we will fear about being pedantic later
 
 SRC=$(wildcard src/*.c)
 
