@@ -3,7 +3,7 @@
 extern wchar_t wcs_current_user[MAX_USERNAME];
 extern wchar_t wcs_toastbuf[MAX_TOAST];
 
-static uint32_t u32_thread = 0;
+static uint32_t u32_current_thread = 0;
 
 static DWORD written;
 
@@ -12,7 +12,7 @@ static message_t *msg_filter(message_t *msg);
 
 
 void msg_send(message_t *msg) {
-    msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude chksum itself
+    msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude chksum itself and the padding
 
     sock_send(msg, sizeof(message_t));
 }
@@ -60,16 +60,12 @@ message_t *msg_init(void) {
 
 message_t *msg_create(
     const msgType_t type,
-    const uint32_t thread,
-    const uint32_t arg,
-    const uint8_t flags
+    const uint32_t thread
 ) {
     message_t *msg = msg_init();
 
     msg->uc_type = type;
     msg->u32_thread = thread;
-    msg->u32_argument = arg;
-    msg->uc_flags = flags;
 
     return msg;
 }
@@ -134,7 +130,6 @@ void msg_sendFile(wchar_t *path) {
     /* Ending message */
     message_t *end = msg_init();
     end->uc_type = MSG_DATA_END;
-    end->u32_argument = remSize;
 
     if (!ReadFile(hFile, end->contents.wcs_body, remSize, &bytesRead, NULL))
         end->uc_type = MSG_DATA_ERROR;
@@ -146,8 +141,8 @@ void msg_sendFile(wchar_t *path) {
 }
 
 
-uint32_t getCurrentThread(void) { return u32_thread; }
-void setCurrentThread(const uint32_t th) { u32_thread = th; }
+uint32_t getCurrentThread(void) { return u32_current_thread; }
+void setCurrentThread(const uint32_t th) { u32_current_thread = th; }
 
 
 static message_t *msg_filter(message_t *msg) {
@@ -170,49 +165,57 @@ static message_t *msg_filter(message_t *msg) {
     if (wcs_addr[0] != L'\0' && wcscmp(wcs_addr, wcs_current_user) != 0) {
         msg_free(msg);
         return NULL;
-    }   
+    }
     
-    // Check if message has a flag telling it not to check thread
-    if (!(msg->uc_flags & MFLAG_BROADCAST)) {
+    // Check if message is broadcasted
+    if (msg->u32_thread != BROADCAST_THREAD) {
 
         // Nor are we in the same thread
-        if (msg->u32_thread != u32_thread) {
+        if (msg->u32_thread != u32_current_thread) {
             msg_free(msg);
             return NULL;
         }
     }
 
-    // PING flag
+    /*
+    // PING flag unused cos it never worked
     if (msg->uc_flags & MFLAG_PING) {
-        mm_toast(L"get pinged retard");
-        //MessageBeep(MB_ICONASTERISK);
+        //MessageBeep(MB_ICONASTERISK); // does not work
         msg_free(msg);
         return NULL;
     }
+    */
 
-    static HANDLE hFileRecv;    /* Without static, the function would override the object because it's called many many times */
+    /* Without static, the function would override the object because it's called many many times */
+    static HANDLE hFileRecv;
+
     switch(msg->uc_type) {
         case MSG_TEXT:
-            return *(msg->contents.wcs_body) ? msg : NULL;       // Beautiful; if the first byte of body is NULL then we return NULL or the message otherwise
+            return *(msg->contents.wcs_body) ? msg : NULL; // Beautiful; if the first byte of body is NULL then we return NULL or the message otherwise
 
         case MSG_DATA_BEGIN:
             // No if (shouldDownload) because if someone wants private send then just go into different thread
+
+            // commented out for testing reasons
+            /*
             if (!wcscmp(wcs_addr, wcs_current_user)) // This prevents the file being downloaded to the user sending it
                 break;
-            
+            */
+
             hFileRecv = CreateFileW(
-                msg->contents.wcs_body,       // Filename is sent in the message body  
-                GENERIC_WRITE,        
-                0,                    
-                NULL,                 
-                CREATE_ALWAYS,        
+                msg->contents.wcs_body, // Filename is sent in the message body  
+                GENERIC_WRITE,
+                0,
+                NULL,
+                CREATE_ALWAYS,
                 FILE_ATTRIBUTE_NORMAL,
-                NULL                  
+                NULL
             );
 
             if (hFileRecv == INVALID_HANDLE_VALUE)
                 mm_toast(L"The file cannot be downloaded");
-            break;
+
+            return *(msg->contents.wcs_body) ? msg : NULL;
         
         case MSG_DATA:
             if (hFileRecv != INVALID_HANDLE_VALUE)
@@ -220,7 +223,7 @@ static message_t *msg_filter(message_t *msg) {
             break;
 
         case MSG_DATA_END:
-            WriteFile(hFileRecv, msg->contents.wcs_body, msg->u32_argument, &written, NULL);   // Write remaining bytes
+            WriteFile(hFileRecv, msg->contents.wcs_body, MAX_BODY, &written, NULL);   // Write remaining bytes
             CloseHandle(hFileRecv);
             break;
 

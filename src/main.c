@@ -58,7 +58,7 @@ int main(void) {
     mm_screenInit();
     mm_screenClear();
 
-    message_t *conn = msg_create(MSG_CONNECT, getCurrentThread(), 0, MFLAG_BROADCAST);
+    message_t *conn = msg_create(MSG_CONNECT, BROADCAST_THREAD);
     msg_send(conn);
     msg_free(conn);
 
