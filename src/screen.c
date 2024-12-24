@@ -29,6 +29,11 @@ static inline void mm_cursorVis(bool state) {
     SetConsoleCursorInfo(hOutput, &cursorInfo);
 }
 
+inline void mm_toast(const wchar_t *text) {
+    swprintf(wcs_toastbuf, MAX_TOAST, L"%ls", text);
+    mm_screenClear();
+}
+
 
 void mm_toastf(const wchar_t *format, ...) {
     va_list argptr;
@@ -47,7 +52,7 @@ void mm_vectorClear(void) {
     }
 }
 
-
+// gets char from input stream
 static wchar_t mm_kbdIn(void);
 
 void mm_kbdLine(void) {
@@ -71,48 +76,56 @@ void mm_kbdLine(void) {
             if (wcs_linebuf[0] == 0)    // Dont send empty message
                 break;
 
-            // File transfer
-            if (!wcscmp(wcs_linebuf, L"/send")) {
-                wchar_t *sfn = OpenFileDialog();
-        
-                msg_sendFile(sfn);
-                free(sfn);
-
-                mm_clearBuffer();
-                break;
-            }
-            
-            // Change thread
-            if (!wcsncmp(wcs_linebuf, L"/thread+", 8)) {
-                setCurrentThread( wcstou32(wcs_linebuf + 8) );
-                mm_toastf(L"Connected to thread %u", getCurrentThread());
-                
-                mm_clearBuffer();
-                break;
-            }
-
-            // Send to private user
+            // private message attributes
             wchar_t *priv = NULL;
-            size_t privOffset = 0;
 
-            if (!wcsncmp(wcs_linebuf, L"/priv+", 6)) {
-                privOffset = wcs_scan(wcs_linebuf + 6);
-                priv = wcs_copy_n(wcs_linebuf + 6, privOffset - 1);
+            uint8_t msgOffset = 0;
+            uint8_t msgFlags = 0;
 
-                privOffset += 6;
-            }
+            // special message
+            if (wcs_linebuf[0] == L'/') {
+
+                // File transfer (/send)
+                if (!wcscmp(wcs_linebuf, L"/send")) {
+                    wchar_t *sfn = OpenFileDialog();
             
-            message_t *sdmsg = msg_create(MSG_TEXT, getCurrentThread(), 0, 0);
-            msg_setContent(sdmsg, priv, wcs_linebuf + privOffset);
+                    msg_sendFile(sfn);
+                    free(sfn);
+
+                    mm_clearBuffer();
+                    break;
+                }
+                
+                // Change thread (/thread+<num>)
+                if (!wcsncmp(wcs_linebuf, L"/thread+", 8)) {
+                    setCurrentThread( wcstou32(wcs_linebuf + 8) );
+                    mm_toastf(L"Connected to thread %u", getCurrentThread());
+                    
+                    mm_clearBuffer();
+                    break;
+                }
+
+                if (!wcsncmp(wcs_linebuf, L"/priv+", 6)) {
+                    msgOffset = wcs_scan(wcs_linebuf + 6);
+                    priv = wcs_copy_n(wcs_linebuf + 6, msgOffset - 1);
+
+                    msgOffset += 6; // remove starting "/priv+"
+                }
+
+                // broadcast the message (/broad)
+                if (!wcsncmp(wcs_linebuf, L"/broad", 6)) {
+                    msgOffset = 6; // remove starting "/broad"
+                    msgFlags = MFLAG_BROADCAST;
+                }
+
+                // ping user (/ping)
+                if (!wcsncmp(wcs_linebuf, L"/ping", 5))
+                    msgFlags = MFLAG_PING;
+            }
+
+            message_t *sdmsg = msg_create(MSG_TEXT, getCurrentThread(), 0, msgFlags);
+            msg_setContent(sdmsg, priv, wcs_linebuf + msgOffset);
             msg_send(sdmsg);
-
-            // If line CONTAINS $PING then set the flag
-            if (!wcsstr(wcs_linebuf, L"!PING") != 0)
-                sdmsg->uc_flags |= MFLAG_PING;
-
-            // If line starts with /broad then broadcast the message
-            if (!wcsncmp(wcs_linebuf, L"/broad", 6))
-                sdmsg->uc_flags |= MFLAG_BROADCAST;
 
             // Add the message to queue
             mm_scroll(sdmsg);
@@ -144,7 +157,7 @@ void mm_printLineBuff(void) {
 /* Normal functions */
 
 void mm_screenInit(void) {
-    hInput = GetStdHandle(STD_INPUT_HANDLE);
+    hInput  = GetStdHandle(STD_INPUT_HANDLE);
     hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
     TIRCAssert(hInput == NULL, L"Failed to initialize STDIN handle!");
@@ -219,7 +232,7 @@ static void mm_msgFormat(message_t *msg) {
 
     if (*(msg->contents.wcs_address)) {
         SetConsoleTextAttribute(hOutput, FOREGROUND_RED);
-        WriteConsoleW( hOutput, L"PRIV ", 6, &written, NULL );
+        WriteConsoleW( hOutput, L"PRIV ", 6, &written, NULL);
     }
     SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
 
@@ -233,75 +246,49 @@ static void mm_msgFormat(message_t *msg) {
     SetConsoleTextAttribute(hOutput, FOREGROUND_INTENSITY);
     WriteConsoleW(hOutput, L"> ", 3, &written, NULL);
 
-    SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
 
+    SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
    
-    bool shouldRender = true; // for now its useless
     WORD wTextAttr = 0;
     wchar_t *privUser, *privUserPers;
 
-    for (wchar_t *wch = msg->contents.wcs_body; *wch; wch++) {
+    for (wchar_t *wch = msg->contents.wcs_body; *wch; ++wch) {
+        if(*wch != L'$') {
+            WriteConsoleW(hOutput, wch, 1, &written, NULL);
+            continue;
+        }
+
+        ++wch;
         switch (*wch) {
-            case L'$':
-                ++wch;
-                switch (*wch) {
-                    case L'$':
-                        goto print;
-
-                    case L'!':
-                        SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
-                        wTextAttr = 0;
-                        shouldRender = true;
-                        continue;
-
-                    case L'>':
-                        wTextAttr |= FOREGROUND_INTENSITY;
-                        break;
-
-                    case L'<':
-                        wTextAttr |= BACKGROUND_INTENSITY;
-                        break;
-                    
-
-                    /* Foregrounds */
-                    case L'r':
-                        wTextAttr |= FOREGROUND_RED;
-                        break;
-
-                    case L'g':
-                        wTextAttr |= FOREGROUND_GREEN;
-                        break;
-
-                    case L'b':
-                        wTextAttr |= FOREGROUND_BLUE;
-                        break;
-
-
-                    /* Backgrounds */
-                    case L'R':
-                        wTextAttr |= BACKGROUND_RED;
-                        break;
-
-                    case L'G':
-                        wTextAttr |= BACKGROUND_GREEN;
-                        break;
-
-                    case L'B':
-                        wTextAttr |= BACKGROUND_BLUE;
-                        break;
-
-                    default:
-                        goto print;
-                }
-                SetConsoleTextAttribute(hOutput, wTextAttr == 0 ? FOREGROUND_DEFAULT : wTextAttr);
+            case L'$':  // print '$' char itself
+                WriteConsoleW(hOutput, wch, 1, &written, NULL);
                 break;
+            
+            /* Intensities */
+            case L'>': wTextAttr |= FOREGROUND_INTENSITY; break;
+            case L'<': wTextAttr |= BACKGROUND_INTENSITY; break;            
+
+            /* Foregrounds */
+            case L'r': wTextAttr |= FOREGROUND_RED;     break;
+            case L'g': wTextAttr |= FOREGROUND_GREEN;   break;
+            case L'b': wTextAttr |= FOREGROUND_BLUE;    break;
+
+            /* Backgrounds */
+            case L'R': wTextAttr |= BACKGROUND_RED;     break;
+            case L'G': wTextAttr |= BACKGROUND_GREEN;   break;
+            case L'B': wTextAttr |= BACKGROUND_BLUE;    break;
+
+            case L'!':
+                SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
+                wTextAttr = 0;
+                continue;
 
             default:
-            print:
-                if (shouldRender)
-                    WriteConsoleW(hOutput, wch, 1, &written, NULL);
+                WriteConsoleW(hOutput, wch, 1, &written, NULL);
                 break;
         }
+
+        SetConsoleTextAttribute(hOutput, wTextAttr == 0 ? FOREGROUND_DEFAULT : wTextAttr);
     }
     
     SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);

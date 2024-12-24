@@ -21,7 +21,7 @@
 
 #include "crc.h"
 
-#define MMVER   0x10
+#define MMVER           0x11
 #define MAX_USERNAME    24
 #define MAX_BODY        80
 #define MAX_MOTD        160
@@ -42,7 +42,10 @@
     name - actual function name in camelCase.
 */
 
-// formatted toast print
+// toast print
+void mm_toast(const wchar_t *text);
+
+// formatted version
 void mm_toastf(const wchar_t *format, ...);
 
 uint32_t wcstou32(const wchar_t *wcs);
@@ -50,16 +53,17 @@ wchar_t* wcs_copy_n(const wchar_t* source, const size_t n);
 size_t wcs_scan(const wchar_t *src);
 void MessageBoxW_Format(const wchar_t *format, ...);
 
+
 // Error reporting
 
 void TIRCriticalError(const wchar_t *text);
 void TIRCFormatError(int lasterror);
 
-#define TIRCAssert(condition, text)  \
-do {                            \
-    if((condition)) {                \
-        TIRCriticalError(text); \
-    }                           \
+#define TIRCAssert(condition, text) \
+do {                                \
+    if((condition)) {               \
+        TIRCriticalError(text);     \
+    }                               \
 } while (0)
 
 /*

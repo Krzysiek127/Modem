@@ -9,9 +9,7 @@ wchar_t* OpenFileDialog(void)
     // Initialize COM library
     hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     if (FAILED(hr))
-    {
         return NULL; // COM initialization failed
-    }
 
     // Create the File Open Dialog object
     hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_ALL, &IID_IFileDialog, (void**)&pFileDialog);
@@ -26,9 +24,7 @@ wchar_t* OpenFileDialog(void)
         DWORD dwFlags;
         hr = pFileDialog->lpVtbl->GetOptions(pFileDialog, &dwFlags);
         if (SUCCEEDED(hr))
-        {
             hr = pFileDialog->lpVtbl->SetOptions(pFileDialog, dwFlags | FOS_FORCEFILESYSTEM);
-        }
 
         // Set the file type filter
         pFileDialog->lpVtbl->SetFileTypes(pFileDialog, ARRAYSIZE(fileTypes), fileTypes);
@@ -42,17 +38,17 @@ wchar_t* OpenFileDialog(void)
             hr = pFileDialog->lpVtbl->GetResult(pFileDialog, &pItem);
             if (SUCCEEDED(hr))
             {
-                PWSTR tempFilePath = NULL;
+                wchar_t *tempFilePath = NULL;
                 hr = pItem->lpVtbl->GetDisplayName(pItem, SIGDN_FILESYSPATH, &tempFilePath);
                 if (SUCCEEDED(hr))
                 {
                     // Allocate memory for the file path and copy the result
                     size_t len = wcslen(tempFilePath) + 1;
                     pszFilePath = (wchar_t*)malloc(len * sizeof(wchar_t));
-                    if (pszFilePath)
-                    {
+
+                    if (pszFilePath != NULL)
                         wcscpy_s(pszFilePath, len, tempFilePath);
-                    }
+
                     CoTaskMemFree(tempFilePath);
                 }
                 pItem->lpVtbl->Release(pItem);

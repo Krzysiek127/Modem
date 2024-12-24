@@ -2,8 +2,6 @@
 
 static SOCKET skMain, skBroad;
 
-const char ADDR[] = "127.0.0.1";
-
 static inline void sock_initUDP(const uint16_t port) {
     TIRCAssert(
         (skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET,
@@ -39,7 +37,7 @@ static inline void sock_initUDP(const uint16_t port) {
 }
 
 
-static inline void sock_initTCP(const uint16_t port) {
+static inline void sock_initTCP(const char *address, const uint16_t port) {
     TIRCAssert(
         (skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET,
         L"Failed to initialize TCP socket"
@@ -47,7 +45,7 @@ static inline void sock_initTCP(const uint16_t port) {
 
     struct sockaddr_in TCP;
     TCP.sin_family =      AF_INET;
-    TCP.sin_addr.s_addr = inet_addr(ADDR);
+    TCP.sin_addr.s_addr = inet_addr(address);
     TCP.sin_port =        htons(port);
 
     TIRCAssert(
@@ -69,7 +67,7 @@ void sock_init(void) {
         L"Failed to initialize Winsock 2.2"
     );
 
-    sock_initTCP(2005);
+    sock_initTCP("127.0.0.1", 2005);
     //sock_innitUDP(2005);
 }
 
