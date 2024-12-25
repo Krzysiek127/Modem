@@ -1,5 +1,5 @@
-CC=gcc 
-CFLAGS=-g3 #-MMD -Wall -Wextra -Wpedantic -Wconversion # we will fear about being pedantic later
+CC=gcc
+CFLAGS=-MMD -Wall -Wextra# -Wpedantic -Wconversion # we will fear about being pedantic later
 
 SRC=$(wildcard src/*.c)
 
@@ -13,7 +13,7 @@ TARGET=/usr/local
 
 all: debug
 
-debug: CFLAGS += -g
+debug: CFLAGS +=-g -g3
 debug: $(EXE)
 
 remake: clean debug

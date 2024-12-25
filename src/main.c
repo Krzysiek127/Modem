@@ -1,59 +1,92 @@
 #include "screen.h"
 #include "message.h"
+#include "socket.h"
+#include "username.h"
 
-#define fileExists(fileName) (_waccess((fileName), F_OK))
+#include "getopt.h"
+
+#define OPT_NEW_USER    0x01
+#define OPT_TCP_CONNECT 0x02
+#define OPT_UDP_CONNECT 0x04
 
 // All-Project globals
 wchar_t wcs_current_user[MAX_USERNAME];
 
-// returns 0(false) on success
-static inline bool inspectUserFile(void) {
-    if (fileExists(L"username"))
-        return true;
-
-    FILE *fUserFile = fopen("username", "rb");
-
-    TIRCAssert(
-        fUserFile == NULL,
-        L"Username file could not be read"
-    );
-    
-    fseek(fUserFile, 0L, SEEK_END);
-
-    TIRCAssert(
-        ftell(fUserFile) != (MAX_USERNAME * sizeof(wchar_t)),
-        L"Invalid username stored! Delete the file"
-    );
-    
-    rewind(fUserFile);
-    fread(wcs_current_user, sizeof(wchar_t), MAX_USERNAME, fUserFile);
-    fclose(fUserFile);
-
-    return false;
-}
-
-
-int main(void) {
-    if (inspectUserFile()) {
-        wprintf(L"No username file!\nNew username> ");
-
-        TIRCAssert(
-            fgetws(wcs_current_user, MAX_USERNAME, stdin) == NULL,
-            L"Invalid username"
-        );
-        
-        // remove ungraph-able chars (if there are any)
-        for (wchar_t *wcsptr = wcs_current_user; *wcsptr; wcsptr++) {
-            if (!iswgraph(*wcsptr))
-                *wcsptr = '\0';
-        }
-
-        FILE *fUserFile = fopen("username", "wb");
-        fwrite(wcs_current_user, sizeof(wchar_t), MAX_USERNAME, fUserFile);
-        fclose(fUserFile);
+int main(int argc, char **argv) {
+    if (argc < 2 || argc > 3) {
+        fprintf(stderr, "Usage: %s [-u] [-f ip<:port> | -b port]\n", argv[0]);
+        return 0;
     }
 
-    sock_init();
+    // cmdl options
+    uint8_t opts = 0;
+
+    opterr = 0;
+    int c;
+    while ((c = getopt(argc, argv, "uf:b:h")) != -1) {
+        switch (c) {
+
+            case 'u':
+                opts |= OPT_NEW_USER;
+                break;
+            case 'f': {
+                if (opts & OPT_UDP_CONNECT) {
+                    fprintf(stderr, "Only 1 connection type can be specified");
+                    return 1;
+                }
+                opts |= OPT_TCP_CONNECT;
+
+                char *ip = strtok(optarg, ":");
+                char *port = strtok(NULL, ":");
+
+                TIRCAssert(
+                    strlen(ip) > 15 || strlen(ip) < 9,
+                    L"Incorrect ip address."
+                );
+                
+                sock_initTCP(inet_addr(ip), port == NULL ? DEFAULT_PORT : (uint16_t)atoi(port));
+                break;
+            }
+            case 'b': {
+                if (opts & OPT_TCP_CONNECT) {
+                    fprintf(stderr, "Only 1 connection type can be specified");
+                    return 1;
+                }
+                opts |= OPT_UDP_CONNECT;
+
+                char port[6];
+                strncpy(port, optarg, 6);
+
+                printf("Discovering Modem server [%s@UDP], please wait...", port);
+                sock_initUDP((uint16_t)atoi(port));
+                break;
+            }
+            case 'h':
+                printf(
+                    "Telthar Modem chat client Va1.0 PV:%xH\n\n"
+                    "Usage: %s [-u]  [-f ip:<port> | -b port]\n"
+                    "-u : Creates or switches a user.\n"
+                    "-f : Directly connects to specified address. If port not specified, it defaults to 2005.\n"
+                    "-b : UDP port used for server discovery. Defaults to 2005.\n",
+                    MMVER, argv[0]
+                );
+                return 0;
+            
+            default:
+                fprintf(stderr, "Usage: %s [-u] [-f ip<:port> | -b port]\n", argv[0]);
+                return 1;
+        }
+    }
+
+    if (opts & OPT_NEW_USER)
+        createUser();
+    else
+        readUser();
+
+    if (!(opts & OPT_UDP_CONNECT) && !(opts & OPT_TCP_CONNECT)) {
+        fprintf(stderr, "No connection type was specified\n");
+        return 1;
+    }
 
     mm_screenInit();
     mm_screenClear();

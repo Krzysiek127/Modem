@@ -1,8 +1,5 @@
 #include "screen.h"
 
-
-#define START_LINE 3
-
 HANDLE hInput, hOutput;
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
@@ -63,7 +60,7 @@ void mm_kbdLine(void) {
         // Invalid chars
         case 0: break;
         
-        case 27:    // ESC
+        case 27: { // ESC
             message_t *dxconn = msg_create(MSG_DISCONNECT, BROADCAST_THREAD);
 
             msg_send(dxconn);
@@ -72,8 +69,9 @@ void mm_kbdLine(void) {
             mm_cursorVis(true);
             exit(0);
             break;
+        }    
+        case L'\r': { // Enter
 
-        case L'\r':  // Enter
             if (wcs_linebuf[0] == 0)    // Dont send empty message
                 break;
 
@@ -81,7 +79,6 @@ void mm_kbdLine(void) {
             wchar_t *priv = NULL;
 
             uint8_t msgOffset = 0;
-            uint8_t msgFlags = 0;
             uint32_t msgThread = getCurrentThread();
 
             // special message
@@ -132,7 +129,7 @@ void mm_kbdLine(void) {
             mm_scroll(sdmsg);
             mm_clearBuffer();
             break;
-
+        }
         case 127:   // Backspace
             if (lbuf_index)
                 wcs_linebuf[--lbuf_index] = 0;
@@ -145,6 +142,8 @@ void mm_kbdLine(void) {
             break;
     }
 }
+
+
 void mm_printLineBuff(void) {
     SetConsoleCursorPosition(hOutput, (COORD) {0, 0});
     wprintf(L"%ls@%u> ", wcs_current_user, getCurrentThread());
@@ -176,10 +175,10 @@ void mm_screenInit(void) {
 }
 
 void mm_screenClear(void) {
-    FillConsoleOutputCharacter(
+    FillConsoleOutputCharacterW(
         hOutput, 
         ' ', 
-        csbi.dwSize.X * csbi.dwSize.Y, 
+        (DWORD)csbi.dwSize.X * (DWORD)csbi.dwSize.Y, 
         (COORD){0, 0}, 
         &written
     );
@@ -187,7 +186,7 @@ void mm_screenClear(void) {
     FillConsoleOutputAttribute(
         hOutput, 
         csbi.wAttributes, 
-        csbi.dwSize.X * csbi.dwSize.Y, 
+        (DWORD)csbi.dwSize.X * (DWORD)csbi.dwSize.Y, 
         (COORD){0, 0}, 
         &written
     );
@@ -258,7 +257,6 @@ static void mm_msgFormat(message_t *msg) {
     SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
    
     WORD wTextAttr = 0;
-    wchar_t *privUser, *privUserPers;
 
     for (wchar_t *wch = msg->contents.wcs_body; *wch; ++wch) {
         if(*wch != L'$') {

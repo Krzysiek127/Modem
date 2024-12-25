@@ -4,6 +4,8 @@
 #include "message.h"
 #include "dlgbox.h"
 
+#define START_LINE 3
+
 // wtf does 'mm' mean???
 
 void mm_screenInit(void);

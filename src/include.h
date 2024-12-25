@@ -31,9 +31,6 @@
 #define PRG_NAME    (L"Modem")
 #define PRG_VER     (L"0.1")
 
-#define UDP_TIMEOUT 50
-#define TCP_SLEEP   0
-
 
 /*
     FUNCTION NAMING 101 
@@ -65,6 +62,9 @@ do {                                \
         TIRCriticalError(text);     \
     }                               \
 } while (0)
+
+bool hexdump(const void *addr, const size_t size, uint8_t perLine);
+
 
 /*
     Generally UDP would be used for server discovery and advertisiment so it needs timeout (Server selection before connecting)

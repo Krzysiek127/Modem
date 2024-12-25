@@ -1,5 +1,5 @@
-#ifndef H_TYPES
-#define H_TYPES
+#ifndef H_MSG
+#define H_MSG
 
 #include "include.h"
 #include "socket.h"

@@ -84,7 +84,7 @@ inline bool hexdump(const void *addr, const size_t size, uint8_t perLine)
             if (i) printf("  %s\n", buff);
 
             // Output the offset of current line.
-            printf("%06x:", i);
+            printf("%06zx:", i);
         }
 
         // Now the hex code for the specific character.

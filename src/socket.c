@@ -2,7 +2,15 @@
 
 static SOCKET skMain, skBroad;
 
-static inline void sock_initUDP(const uint16_t port) {
+void sock_initUDP(const uint16_t port) {
+    WSADATA wsa;
+
+    TIRCAssert(
+        WSAStartup(MAKEWORD(2, 2), &wsa) != 0,
+        L"Failed to initialize Winsock 2.2"
+    );
+
+
     TIRCAssert(
         (skBroad = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET,
         L"Failed to initialize UDP socket"
@@ -18,26 +26,42 @@ static inline void sock_initUDP(const uint16_t port) {
         L"Failed to bind UDP port"
     );
 
-    /* Set timeout on UDP socket */
-    uint8_t timeout = UDP_TIMEOUT;
-    bool broadcast = true;
+    advert_t advert;
+    struct sockaddr_in si_other;
+    int si_otherSize = sizeof(si_other);
 
-    TIRCAssert(
-        setsockopt(skBroad, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) < 0,
-        L"Failed to set broadcast option on UDP socket"
-    );
-    TIRCAssert(
-        setsockopt(skBroad, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0,
-        L"Failed to set send timeout"
-    );
-    TIRCAssert(
-        setsockopt(skBroad, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0,
-        L"Failed to set receive timeout"
-    );
+    while (1)
+    {
+        int recl = recvfrom(skBroad, (char*)&advert, sizeof(advert_t), 0, (struct sockaddr*)&si_other, &si_otherSize);
+
+        if (recl != sizeof(advert_t)) {
+            wprintf(L"Received datagram is of invalid length\n");
+            continue;
+        }
+        
+        if (advert.u32_crc != crc32(&advert, sizeof(advert_t) - sizeof(uint32_t))) {
+            wprintf(L"Invalid checksum\n");
+            continue;
+        }
+
+        break;
+    }
+
+    closesocket(skBroad);
+    sock_initTCP(advert.u32_addr, advert.u16_port);
+
+    mm_toast(advert.wcs_welcome);
 }
 
 
-static inline void sock_initTCP(const char *address, const uint16_t port) {
+void sock_initTCP(const uint32_t address, const uint16_t port) {
+    WSADATA wsa;
+    TIRCAssert(
+        WSAStartup(MAKEWORD(2, 2), &wsa) != 0,
+        L"Failed to initialize Winsock 2.2"
+    );
+
+
     TIRCAssert(
         (skMain = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET,
         L"Failed to initialize TCP socket"
@@ -45,7 +69,7 @@ static inline void sock_initTCP(const char *address, const uint16_t port) {
 
     struct sockaddr_in TCP;
     TCP.sin_family =      AF_INET;
-    TCP.sin_addr.s_addr = inet_addr(address);
+    TCP.sin_addr.s_addr = address;
     TCP.sin_port =        htons(port);
 
     TIRCAssert(
@@ -58,24 +82,14 @@ static inline void sock_initTCP(const char *address, const uint16_t port) {
     ioctlsocket(skMain, FIONBIO, &mode);
 }
 
-
-void sock_init(void) {
-    WSADATA wsa;
-
-    TIRCAssert(
-        WSAStartup(MAKEWORD(2, 2), &wsa) != 0,
-        L"Failed to initialize Winsock 2.2"
-    );
-
-    sock_initTCP("127.0.0.1", 2005);
-    //sock_innitUDP(2005);
-}
-
-
 void sock_send(const void *data, const int size) {
 
-    if (send(skMain, (const char*)data, size, 0) == SOCKET_ERROR)
-        TIRCFormatError(WSAGetLastError());
+    if (send(skMain, (const char*)data, size, 0) == SOCKET_ERROR) {
+        int err = WSAGetLastError();
+        if (err != WSAEWOULDBLOCK)
+            TIRCFormatError(err);
+        Sleep(TCP_SLEEP);
+    }
 }
 
 bool sock_recieve(void *buff, const int size) {

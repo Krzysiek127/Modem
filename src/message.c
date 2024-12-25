@@ -12,8 +12,8 @@ static message_t *msg_filter(message_t *msg);
 
 
 void msg_send(message_t *msg) {
-    msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude chksum itself and the padding
-
+    msg->u32_checksum = crc32(msg, sizeof(message_t) - sizeof(uint32_t));   // Exclude checksum itself
+    
     sock_send(msg, sizeof(message_t));
 }
 
