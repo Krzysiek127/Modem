@@ -11,7 +11,7 @@ void safeExit(void) {
 
 void TIRCriticalError(const wchar_t *msg) {
     wchar_t errMsg[255];
-    swprintf(errMsg, 255, L"%ls\nerrno: %d", msg, errno);
+    swprintf(errMsg, 255, L"%ls\nlast error id: %d", msg, GetLastError());
     MessageBoxW(NULL, errMsg, PRG_NAME, MB_ICONERROR);
     safeExit();
 }
