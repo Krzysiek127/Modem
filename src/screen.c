@@ -1,57 +1,67 @@
 #include "screen.h"
 
-HANDLE hInput, hOutput;
+#define HEADER_SIZE (MAX_BODY + MAX_TOAST + 6)
+
+// dummy windows variables
+static DWORD written;
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
-wchar_t wcs_toastbuf[MAX_TOAST];
+extern wchar_t wcs_currentUser[MAX_USERNAME];
 
-extern wchar_t wcs_current_user[MAX_USERNAME];
+HANDLE hIn  = NULL;  // stdin
+HANDLE hOut = NULL;  // stdout
 
-#define VECTOR_LENGTH   10
-static message_t *msg_vector[VECTOR_LENGTH];
+// screen buffer
+static struct screenBuffer{
+    wchar_t toastBuffer[MAX_TOAST];
 
-static wchar_t wcs_linebuf[MAX_BODY] = {0};
-static size_t lbuf_index = 0;
+    message_t *msgBuffer[MSG_BUFFER_SIZE];
 
-// disposable dummy windows variable
-static DWORD written;
+    wchar_t lineBuffer[MAX_BODY];
+    uint8_t lineBufferIndex;
+} screen;
+
+// console flags to restore on exit
+DWORD savedFlags;
+
 
 /* Forward declaration for static functions */
-static void mm_msgFormat(message_t *msg);
-static void mm_clearBuffer(void);
+static void mm_msgPrint(message_t *msg);
+static void mm_clearLineBuffer(void);
+
+// gets char from input stream
+static wchar_t mm_kbdIn(void);
 
 static inline void mm_cursorVis(bool state) {
     CONSOLE_CURSOR_INFO cursorInfo;
-    GetConsoleCursorInfo(hOutput, &cursorInfo);
+    GetConsoleCursorInfo(hOut, &cursorInfo);
     cursorInfo.bVisible = state;
-    SetConsoleCursorInfo(hOutput, &cursorInfo);
+    SetConsoleCursorInfo(hOut, &cursorInfo);
 }
 
+/* global declarations */
 
 inline void mm_toast(const wchar_t *text) {
-    swprintf(wcs_toastbuf, MAX_TOAST, L"%ls", text);
-    mm_screenClear();
+    swprintf(screen.toastBuffer, MAX_TOAST, L"%ls", text);
+    mm_clearScreen();
 }
 
 void mm_toastf(const wchar_t *format, ...) {
     va_list argptr;
 
     va_start(argptr, format);
-    vswprintf(wcs_toastbuf, MAX_TOAST, format, argptr);
+    vswprintf(screen.toastBuffer, MAX_TOAST, format, argptr);
     va_end(argptr);
 
-    mm_screenClear();
+    mm_clearScreen();
 }
 
-void mm_vectorClear(void) {
-    for (int i = 0; i < VECTOR_LENGTH; i++) {
-        msg_free( msg_vector[i] );
-        msg_vector[i] = NULL;
+void mm_clearMsgBuffer(void) {
+    for (int i = 0; i < MSG_BUFFER_SIZE; i++) {
+        if (screen.msgBuffer[i] != NULL)
+            msg_free(screen.msgBuffer[i]);
     }
 }
-
-// gets char from input stream
-static wchar_t mm_kbdIn(void);
 
 void mm_kbdLine(void) {
     const wchar_t ch = mm_kbdIn();
@@ -66,117 +76,158 @@ void mm_kbdLine(void) {
             msg_send(dxconn);
             msg_free(dxconn);
 
-            mm_cursorVis(true);
-            exit(0);
+            safeExit();
             break;
         }    
         case L'\r': { // Enter
 
-            if (wcs_linebuf[0] == 0)    // Dont send empty message
+            if (screen.lineBufferIndex == 0)    // Dont send empty message
                 break;
 
-            // private message attributes
+            // private message
             wchar_t *priv = NULL;
 
             uint8_t msgOffset = 0;
             uint32_t msgThread = getCurrentThread();
 
-            // special message
-            if (wcs_linebuf[0] == L'/') {
+            // commands / special messages
+            if (screen.lineBuffer[0] == L'/') {
 
                 // File transfer (/send)
-                if (!wcsncmp(wcs_linebuf, L"/send", 5)) {
+                if (!wcsncmp(screen.lineBuffer, L"/send", 5)) {
                     wchar_t *sfn = OpenFileDialog();
             
                     msg_sendFile(sfn);
                     free(sfn);                    
 
-                    mm_clearBuffer();
+                    mm_clearLineBuffer();
                     break;
                 }
                 
                 // Change thread (/thread+<num>)
-                if (!wcsncmp(wcs_linebuf, L"/thread+", 8)) {
-                    setCurrentThread(wcstou32(wcs_linebuf + 8));
-                    msgThread = getCurrentThread();
+                if (!wcsncmp(screen.lineBuffer, L"/thread+", 8)) {
+                    const uint32_t th = wcstou32(screen.lineBuffer + 8);
 
-                    mm_toastf(L"Connected to thread %u", getCurrentThread());
+                    if (th >= BROADCAST_THREAD) {
+                        mm_toast(L"Thread number too high.");
+                        mm_clearLineBuffer();
+                        return;
+                    }
                     
-                    mm_clearBuffer();
-                    break;
+                    setCurrentThread((uint16_t)th);
+                    mm_toastf(L"Connected to thread %u.", getCurrentThread());
+                    
+                    mm_clearLineBuffer();
+                    return;
+                }
+
+                // quit the app
+                if (!wcsncmp(screen.lineBuffer, L"/quit", 5)) {
+                    message_t *dxconn = msg_create(MSG_DISCONNECT, BROADCAST_THREAD);
+
+                    msg_send(dxconn);
+                    msg_free(dxconn);
+
+                    safeExit();
+                    return;
                 }
 
                 // Private message (/priv+<user>)
-                if (!wcsncmp(wcs_linebuf, L"/priv+", 6)) {
-                    msgOffset = wcs_scan(wcs_linebuf + 6);
-                    priv = wcs_copy_n(wcs_linebuf + 6, msgOffset - 1);
-
+                if (!wcsncmp(screen.lineBuffer, L"/priv+", 6)) {
+                    msgOffset = wcs_scan(screen.lineBuffer + 6);
+                    priv = memcpy_n(screen.lineBuffer + 6, MAX_USERNAME * sizeof(wchar_t));
+                    
                     msgOffset += 6; // remove starting "/priv+"
                 }
 
                 // broadcast the message (/broad)
-                if (!wcsncmp(wcs_linebuf, L"/broad", 6)) {
+                if (!wcsncmp(screen.lineBuffer, L"/broad", 6)) {
                     msgOffset = 6; // remove starting "/broad"
                     msgThread = BROADCAST_THREAD;
                 }
             }
 
             message_t *sdmsg = msg_create(MSG_TEXT, msgThread);
-            msg_setContent(sdmsg, priv, wcs_linebuf + msgOffset);
+            msg_setContent(sdmsg, priv, screen.lineBuffer + msgOffset);
+            if (priv != NULL)
+                free(priv);
+
             msg_send(sdmsg);
 
             // Add the message to queue
             mm_scroll(sdmsg);
-            mm_clearBuffer();
+            mm_clearLineBuffer();
             break;
         }
         case 127:   // Backspace
-            if (lbuf_index)
-                wcs_linebuf[--lbuf_index] = 0;
-            mm_screenClear();
+            if (screen.lineBufferIndex)
+                screen.lineBuffer[--screen.lineBufferIndex] = 0;
+            mm_clearScreen();
             break;
-
+        case L' ': // dont prepend spaces in messages
+            if (screen.lineBufferIndex == 0)
+                break;
         default:
-            if (lbuf_index < MAX_BODY && iswprint(ch))
-                wcs_linebuf[lbuf_index++] = ch;
+            if (screen.lineBufferIndex < MAX_BODY && iswprint(ch))
+                screen.lineBuffer[screen.lineBufferIndex++] = ch;
             break;
     }
 }
 
 
-void mm_printLineBuff(void) {
-    SetConsoleCursorPosition(hOutput, (COORD) {0, 0});
-    wprintf(L"%ls@%u> ", wcs_current_user, getCurrentThread());
-    WriteConsoleW(hOutput, wcs_linebuf, lbuf_index, &written, NULL);
+void mm_printHeader(void) {
+    SetConsoleCursorPosition(hOut, (COORD) {0, 0});
 
-    SetConsoleCursorPosition(hOutput, (COORD) {0, 1});
-    WriteConsoleW(hOutput, wcs_toastbuf, MAX_TOAST, &written, NULL);
+    wchar_t header[MAX_TOAST + MAX_BODY + 6] = {0};
+
+    swprintf(
+        header, MAX_TOAST + MAX_BODY + 6,
+        L"%ls@%hu> %ls\n%ls",
+        wcs_currentUser, getCurrentThread(), screen.lineBuffer, screen.toastBuffer
+    );
+
+    WriteConsoleW(hOut, header, HEADER_SIZE, &written, NULL);
+
+    /*
+    // 3 io calls just for 2 lines..
+    wprintf(L"%ls@%hu> ", wcs_currentUser, getCurrentThread());
+    WriteConsoleW(hOut, screen.lineBuffer, MAX_BODY, &written, NULL);
+
+    SetConsoleCursorPosition(hOut, (COORD) {0, 1});
+    WriteConsoleW(hOut, screen.toastBuffer, MAX_TOAST, &written, NULL);
+    */
 }
 
 
 /* Normal functions */
 
 void mm_screenInit(void) {
-    hInput  = GetStdHandle(STD_INPUT_HANDLE);
-    hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    memset(&screen, 0, sizeof(screen));
 
-    TIRCAssert(hInput == NULL, L"Failed to initialize STDIN handle!");
-    TIRCAssert(hOutput == NULL, L"Failed to initialize STDOUT handle!");
+    hIn  = GetStdHandle(STD_INPUT_HANDLE);
+    hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    TIRCAssert(hIn == NULL, L"Failed to initialize STDIN handle!");
+    TIRCAssert(hOut == NULL, L"Failed to initialize STDOUT handle!");
 
     //SetConsoleOutputCP(CP_UTF8);
     setlocale(LC_ALL, ".UTF8");
+
+    GetConsoleMode(hIn, &savedFlags);
+    
     SetConsoleMode(
-        hInput, 
+        hIn,
         ((~ENABLE_LINE_INPUT) & ~ENABLE_ECHO_INPUT) | ENABLE_PROCESSED_INPUT
     );
 
-    GetConsoleScreenBufferInfo(hOutput, &csbi);
+    GetConsoleScreenBufferInfo(hOut, &csbi);
     mm_cursorVis(false);
 }
 
-void mm_screenClear(void) {
+
+void mm_clearScreen(void) {
     FillConsoleOutputCharacterW(
-        hOutput, 
+        hOut, 
         ' ', 
         (DWORD)csbi.dwSize.X * (DWORD)csbi.dwSize.Y, 
         (COORD){0, 0}, 
@@ -184,90 +235,85 @@ void mm_screenClear(void) {
     );
 
     FillConsoleOutputAttribute(
-        hOutput, 
+        hOut, 
         csbi.wAttributes, 
         (DWORD)csbi.dwSize.X * (DWORD)csbi.dwSize.Y, 
         (COORD){0, 0}, 
         &written
     );
 
-    //FillConsoleOutputAttribute(hOutput, BACKGROUND_INTENSITY, s.dwSize.X, (COORD){0, 1}, &written);
-
-    SetConsoleCursorPosition(hOutput, (COORD){0, 0});
+    SetConsoleCursorPosition(hOut, (COORD){0, 0});
 }
 
 void mm_screenFlush(void) {
-    for (size_t i = 0; i < VECTOR_LENGTH; i++) {
-        SetConsoleCursorPosition(hOutput, (COORD){0, START_LINE + (i * 2)});
-        mm_msgFormat(msg_vector[i]);
+    for (size_t i = 0; i < MSG_BUFFER_SIZE; i++) {
+        SetConsoleCursorPosition(hOut, (COORD){0, START_LINE + (i * 2)});
+        mm_msgPrint(screen.msgBuffer[i]);
     }
 }
 
 
-void mm_scroll(message_t *new) {
-    msg_free(msg_vector[0]);
-    for (size_t i = 0; i < VECTOR_LENGTH; i++) {    // Add display limit depending on term resolution
-        msg_vector[i] = msg_vector[i + 1];
+void mm_scroll(message_t *msg) {
+    msg_free(screen.msgBuffer[0]);
+    for (size_t i = 0; i < MSG_BUFFER_SIZE; i++) {    // Add display limit depending on term resolution
+        screen.msgBuffer[i] = screen.msgBuffer[i + 1];
     }
-    msg_vector[VECTOR_LENGTH - 1] = new;
+    screen.msgBuffer[MSG_BUFFER_SIZE - 1] = msg;
 }
 
 /* Static functions */
 
 static wchar_t mm_kbdIn(void) {
-    TIRCAssert(hInput == NULL, L"Uninitialized STDIN handle!");
     INPUT_RECORD IR;
     DWORD EVENTSREAD;
 
-    if (PeekConsoleInputW(hInput, &IR, 1, &EVENTSREAD) && EVENTSREAD) {
-        ReadConsoleInputW(hInput, &IR, 1, &EVENTSREAD);
+    if (ReadConsoleInputW(hIn, &IR, 1, &EVENTSREAD))
         return (IR.EventType == KEY_EVENT && IR.Event.KeyEvent.bKeyDown) ? IR.Event.KeyEvent.uChar.UnicodeChar : 0;
-    }
+
     return 0;
 }
 
-static void mm_msgFormat(message_t *msg) {
+static void mm_msgPrint(message_t *msg) {
     if (msg == NULL)
         return;
 
     if (*(msg->contents.wcs_address)) {
-        SetConsoleTextAttribute(hOutput, FOREGROUND_RED);
-        WriteConsoleW( hOutput, L"PRIV ", 6, &written, NULL);
+        SetConsoleTextAttribute(hOut, FOREGROUND_RED);
+        WriteConsoleW(hOut, L"PRIV ", 6, &written, NULL);
     }
 
-    SetConsoleTextAttribute(hOutput, FOREGROUND_RED | FOREGROUND_GREEN);
+    SetConsoleTextAttribute(hOut, FOREGROUND_RED | FOREGROUND_GREEN);
 
-    if (msg->u32_thread != BROADCAST_THREAD)
-    {
+    if (msg->thread != BROADCAST_THREAD) {
         wchar_t thread[11] = {0};
-        swprintf(thread, 11, L"%u+", msg->u32_thread);
-        WriteConsoleW(hOutput, thread, wcslen(thread), &written, NULL);
+        swprintf(thread, 11, L"%hu+", msg->thread);
+        WriteConsoleW(hOut, thread, wcslen(thread), &written, NULL);
     }
     else
-        WriteConsoleW(hOutput, L"BROADCAST+", 10, &written, NULL);
+        WriteConsoleW(hOut, L"BROADCAST+", 10, &written, NULL);
 
-    SetConsoleTextAttribute(hOutput, FOREGROUND_GREEN);
-    WriteConsoleW(hOutput, msg->contents.wcs_username, wcslen(msg->contents.wcs_username), &written, NULL);
-
-
-    SetConsoleTextAttribute(hOutput, FOREGROUND_INTENSITY);
-    WriteConsoleW(hOutput, L"\t> ", 3, &written, NULL);
+    SetConsoleTextAttribute(hOut, FOREGROUND_GREEN);
+    WriteConsoleW(hOut, msg->contents.wcs_username, wcslen(msg->contents.wcs_username), &written, NULL);
 
 
-    SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
+    SetConsoleTextAttribute(hOut, FOREGROUND_INTENSITY);
+    WriteConsoleW(hOut, L"\t> ", 3, &written, NULL);
+
+
+    SetConsoleTextAttribute(hOut, FOREGROUND_DEFAULT);
    
     WORD wTextAttr = 0;
 
     for (wchar_t *wch = msg->contents.wcs_body; *wch; ++wch) {
         if(*wch != L'$') {
-            WriteConsoleW(hOutput, wch, 1, &written, NULL);
+            WriteConsoleW(hOut, wch, 1, &written, NULL);
             continue;
         }
 
         ++wch;
         switch (*wch) {
             case L'$':  // print '$' char itself
-                WriteConsoleW(hOutput, wch, 1, &written, NULL);
+                WriteConsoleW(hOut, wch, 1, &written, NULL);
                 break;
             
             /* Intensities */
@@ -285,24 +331,33 @@ static void mm_msgFormat(message_t *msg) {
             case L'B': wTextAttr |= BACKGROUND_BLUE;    break;
 
             case L'!':
-                SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
+                SetConsoleTextAttribute(hOut, FOREGROUND_DEFAULT);
                 wTextAttr = 0;
                 continue;
 
-            default:
-                WriteConsoleW(hOutput, wch, 1, &written, NULL);
-                break;
+            default: WriteConsoleW(hOut, wch, 1, &written, NULL); break;
         }
 
-        SetConsoleTextAttribute(hOutput, wTextAttr == 0 ? FOREGROUND_DEFAULT : wTextAttr);
+        SetConsoleTextAttribute(hOut, wTextAttr == 0 ? FOREGROUND_DEFAULT : wTextAttr);
     }
     
-    SetConsoleTextAttribute(hOutput, FOREGROUND_DEFAULT);
+    SetConsoleTextAttribute(hOut, FOREGROUND_DEFAULT);
     return;
 }
 
-static void mm_clearBuffer(void) {
-    wmemset(wcs_linebuf, 0, MAX_BODY);
-    lbuf_index = 0;
-    mm_screenClear();
+static void mm_clearLineBuffer(void) {
+    wmemset(screen.lineBuffer, 0, MAX_BODY);
+    screen.lineBufferIndex = 0;
+    mm_clearScreen();
+}
+
+// screen cleanup, sets previous console state
+void mm_cleanup(void) {
+    if (hIn && hOut) { // dont cleanup screen stuff if it wasnt even initialized
+        mm_clearScreen();
+        mm_clearMsgBuffer();
+        mm_cursorVis(true);
+        SetConsoleMode(hIn, savedFlags);
+        memset(&screen, 0, sizeof(screen));
+    }
 }

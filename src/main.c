@@ -3,19 +3,19 @@
 #include "socket.h"
 #include "username.h"
 
-#include "getopt.h"
+#include <getopt.h>
 
 #define OPT_NEW_USER    0x01
 #define OPT_TCP_CONNECT 0x02
 #define OPT_UDP_CONNECT 0x04
 
 // All-Project globals
-wchar_t wcs_current_user[MAX_USERNAME];
+wchar_t wcs_currentUser[MAX_USERNAME];
 
 int main(int argc, char **argv) {
     if (argc < 2 || argc > 3) {
-        fprintf(stderr, "Usage: %s [-u] [-f ip<:port> | -b port]\n", argv[0]);
-        return 0;
+        fprintf(stderr, "Usage: %s [-u] [-f ip:<port> | -b port]\n", argv[0]);
+        return 1;
     }
 
     // cmdl options
@@ -36,8 +36,8 @@ int main(int argc, char **argv) {
                 }
                 opts |= OPT_TCP_CONNECT;
 
-                char *ip = strtok(optarg, ":");
-                char *port = strtok(NULL, ":");
+                const char *ip = strtok(optarg, ":");
+                const char *port = strtok(NULL, ":");
 
                 TIRCAssert(
                     strlen(ip) > 15 || strlen(ip) < 9,
@@ -64,16 +64,16 @@ int main(int argc, char **argv) {
             case 'h':
                 printf(
                     "Telthar Modem chat client Va1.0 PV:%xH\n\n"
-                    "Usage: %s [-u]  [-f ip:<port> | -b port]\n"
+                    "Usage: %s [-u] [-f ip:<port> | -b port]\n"
                     "-u : Creates or switches a user.\n"
-                    "-f : Directly connects to specified address. If port not specified, it defaults to 2005.\n"
+                    "-f : Directly connects to specified address. If port not specified. Defaults to 2005.\n"
                     "-b : UDP port used for server discovery. Defaults to 2005.\n",
                     MMVER, argv[0]
                 );
                 return 0;
             
             default:
-                fprintf(stderr, "Usage: %s [-u] [-f ip<:port> | -b port]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-u] [-f ip:<port> | -b port]\n", argv[0]);
                 return 1;
         }
     }
@@ -88,24 +88,24 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    mm_screenInit();
-    mm_screenClear();
-
     message_t *conn = msg_create(MSG_CONNECT, BROADCAST_THREAD);
     msg_send(conn);
     msg_free(conn);
 
+    mm_screenInit();
+    mm_clearScreen();
     while (1) {
         mm_kbdLine();
-        mm_printLineBuff();
+        mm_printHeader();
         
         message_t *recv = msg_recieve();
-        if (recv != NULL) {
-            mm_screenClear();
+        if (recv != NULL && msg_interpret(recv)) {
+            mm_clearScreen();
             mm_scroll(recv);
         }
         
         mm_screenFlush();
     }
-    return 0;
+    
+    safeExit();
 }

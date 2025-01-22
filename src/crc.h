@@ -29,8 +29,8 @@ extern const uint64_t __crc64_table[256];
 #endif
 
 /**
- * Get standard CRC32(which the polynomial is 0x04C11DB7) value.
- */
+    Get standard CRC32(which the polynomial is 0x04C11DB7) value.
+**/
 TINYCRC_INLINE uint32_t crc32(const void* data, size_t nbytes)
 {
     uint32_t crc = 0xFFFFFFFF;
@@ -43,8 +43,8 @@ TINYCRC_INLINE uint32_t crc32(const void* data, size_t nbytes)
 }
 
 /**
- * Get CRC64(which the polynomial is 0xad93d23594c935a9) value.
- */
+    Get CRC64(which the polynomial is 0xad93d23594c935a9) value.
+**/
 TINYCRC_INLINE uint64_t crc64(const void* data, size_t nbytes)
 {
     uint64_t crc = 0;

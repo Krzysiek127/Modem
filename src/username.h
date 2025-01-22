@@ -2,10 +2,11 @@
 #define H_USER
 
 #include "include.h"
+#include <io.h>
 
 #define USER_FILE ("username")
 
-#define fileExists(fileName) (_access((fileName), F_OK))
+#define fileExists(fileName) !(bool)(_access((fileName), F_OK))
 
 // prompts for username file creation and sets current user
 void createUser(void);

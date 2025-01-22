@@ -1,36 +1,17 @@
 #ifndef H_INCLUDE
 #define H_INCLUDE
 
+#include "defines.h"
 #include <stdio.h>   // Try to minimize it's use (nothing against it just design decision. Safely use it for debugging)
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h> // I recommend using stdbool for clarity
 #include <wchar.h>
 
-#include <time.h>
-#include <assert.h>
-#include <io.h>
-
-#define WIN32_LEAN_AND_MEAN
 #include <locale.h>
-#include <shlwapi.h>
-#include <ws2tcpip.h>
-#include <shobjidl.h>
-#include <winsock2.h>
+#include <time.h>
+
 #include <windows.h>
-
-#include "crc.h"
-
-#define MMVER           0x11
-#define MAX_USERNAME    24
-#define MAX_BODY        80
-#define MAX_MOTD        160
-#define MAX_TOAST       120
-
-#define FOREGROUND_DEFAULT  (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
-#define PRG_NAME    (L"Modem")
-#define PRG_VER     (L"0.1")
-
+#include <shlwapi.h>
 
 /*
     FUNCTION NAMING 101 
@@ -45,9 +26,16 @@ void mm_toast(const wchar_t *text);
 // formatted version
 void mm_toastf(const wchar_t *format, ...);
 
+// wide char string to uint32_t
 uint32_t wcstou32(const wchar_t *wcs);
-wchar_t* wcs_copy_n(const wchar_t* source, const size_t n);
+
+// memcpy but it allocates a buffer for it
+void *memcpy_n(const void *restrict source, const size_t size);
+
+// wcslen but it ignores whitespace
 size_t wcs_scan(const wchar_t *src);
+
+// formatted messagebox
 void MessageBoxW_Format(const wchar_t *format, ...);
 
 
@@ -63,8 +51,8 @@ do {                                \
     }                               \
 } while (0)
 
-bool hexdump(const void *addr, const size_t size, uint8_t perLine);
-
+// safely terminates program duhh...
+void safeExit(void);
 
 /*
     Generally UDP would be used for server discovery and advertisiment so it needs timeout (Server selection before connecting)

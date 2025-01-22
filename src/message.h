@@ -3,31 +3,31 @@
 
 #include "include.h"
 #include "socket.h"
+#include "crc.h"
 
-#define BROADCAST_THREAD UINT32_MAX
+#define BROADCAST_THREAD UINT16_MAX
 
 // type of message object (8-bit)
 typedef uint8_t msgType_t;
 
 typedef struct {
-    uint8_t   mmver;          // Protocol version (should always be set to <<MMVER>>)
-    time_t    tm_timestamp;   // time when message was CREATED!
-    msgType_t uc_type;        // type of the message (what it holds)
+    uint8_t   mmver;        // Protocol version (should always be set to <<MMVER>>)
+    time_t    timestamp;    // time when message was SEND!
+    msgType_t type;         // type of the message (what it holds)
 
-    uint32_t u32_thread;    // Changed channels to threads (sounds cooler)
-                            // when its BROADCAST_THREAD its a broadcasted message
+    uint16_t  thread;       // when its BROADCAST_THREAD its a broadcasted message, default is 0
 
     struct {
         wchar_t wcs_username[MAX_USERNAME]; // who send the message
-        wchar_t wcs_address[MAX_USERNAME];  // When NULL it means '*'
+        wchar_t wcs_address[MAX_USERNAME];  // for who this message is (when empty its everyone)
         wchar_t wcs_body[MAX_BODY];
     } contents;
     
-    BYTE pad[4]; // DONT ACCESS (aligns sizeof(message_t) to 288)
+    // r.i.p. funny pad...
+    //unsigned char padThatOnlyExistsToAlignSizeOfMessageStructTo288BytesForStupidCrc32ToWorkLol[5];
 
     uint32_t u32_checksum;      /* this field HAS to be at the end so that crc32() call is easier [len(msg) - len(u32)] */
 } message_t;
-
 
 /* Low-level functions */
 
@@ -35,30 +35,29 @@ typedef struct {
 message_t *msg_init(void);
 
 // initializes and returns allocated message with specified params
-message_t *msg_create(
-    const msgType_t type,
-    const uint32_t thread
-);
+message_t *msg_create(const msgType_t type, const uint16_t thread);
 
 // sets internal contents of the message (including username)
-void msg_setContent(
-    message_t *restrict msg,
-    const wchar_t *addr,
-    const wchar_t *body
-);
+void msg_setContent(message_t *restrict msg, const wchar_t *addr, const wchar_t *body);
+
+void msg_free(message_t *msg);
 
 /* High-level functions */
 
-void msg_free(message_t *msg);
-void msg_sendFile(wchar_t *path);
+// analyzes message and returns true if message is printable
+bool msg_interpret(message_t *msg);
 
-uint32_t getCurrentThread(void);
-void setCurrentThread(uint32_t th);
+void msg_sendFile(const wchar_t *path);
+
+uint16_t getCurrentThread(void);
+void setCurrentThread(const uint16_t th);
 
 
-// socket interaction functions
+/* socket interaction functions */
 
 void msg_send(message_t *msg);
+
+// Returns NULL when no message was recieved
 message_t *msg_recieve(void);
 
 

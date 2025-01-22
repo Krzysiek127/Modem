@@ -1,7 +1,7 @@
 #ifndef H_DISCOVERY
 #define H_DISCOVERY
 
-#include "socket.h"
+#include "defines.h"
 
 typedef struct {
     uint8_t  mmver;

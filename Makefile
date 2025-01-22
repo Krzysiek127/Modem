@@ -19,12 +19,13 @@ debug: $(EXE)
 remake: clean debug
 .NOTPARALLEL: remake
 
-release: CFLAGS += -O3 -DNDEBUG
+release: CFLAGS +=-O3 -DNDEBUG -s
 release: clean $(EXE)
 .NOTPARALLEL: release
 
 clean:
-	del $(OBJ) $(DEP) $(EXE)
+	del /f /q /S src\*.d
+	del /f /q /S src\*.o
 
 install: all
 	cp $(EXE) $(TARGET)/bin

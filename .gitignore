@@ -4,6 +4,7 @@
 *.bin
 *.jpg
 *.png
+*.txt
 username
 
 # Prerequisites
